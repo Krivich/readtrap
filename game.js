@@ -1,8 +1,8 @@
 // Конфигурация
 const CONFIG = {
   curriculumPath: 'curriculum.json',
-  imageBaseUrl: 'https://krivich.github.io/open-word-images/styles/flat/',
-  imageSuffix: '_latest.png',
+  imageBaseUrl: 'https://krivich.github.io/open-word-images/styles/new/',
+  imageSuffix: '.png',
   storageKey: 'reading_game_progress'
 };
 
