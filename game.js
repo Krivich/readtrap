@@ -103,8 +103,17 @@ function startLesson() {
   els.targetWord.textContent = lesson.runtime.target_word;
   updateUI();
 
+  // Перемешиваем картинки (Fisher-Yates)
+  const imageWords = [...lesson.runtime.image_words];
+  const correctWord = imageWords[lesson.runtime.correct_image_index];
+  for (let i = imageWords.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [imageWords[i], imageWords[j]] = [imageWords[j], imageWords[i]];
+  }
+  const newCorrectIndex = imageWords.indexOf(correctWord);
+
   // Генерация карточек
-  lesson.runtime.image_words.forEach((word, idx) => {
+  imageWords.forEach((word, idx) => {
     const card = document.createElement('div');
     card.className = 'image-card';
     card.dataset.index = idx;
@@ -118,23 +127,23 @@ function startLesson() {
     };
 
     card.appendChild(img);
-    card.addEventListener('click', () => handleAnswer(idx, lesson));
+    card.addEventListener('click', () => handleAnswer(idx, newCorrectIndex, lesson));
     els.grid.appendChild(card);
   });
 }
 
 // Обработка ответа
-function handleAnswer(selectedIdx, lesson) {
+function handleAnswer(selectedIdx, correctIndex, lesson) {
   if (state.isAnswered) return;
   state.isAnswered = true;
 
-  const isCorrect = selectedIdx === lesson.runtime.correct_image_index;
+  const isCorrect = selectedIdx === correctIndex;
   const cards = document.querySelectorAll('.image-card');
 
   cards.forEach(c => c.classList.add('disabled'));
   cards[selectedIdx].classList.add(isCorrect ? 'correct' : 'wrong');
   if (!isCorrect) {
-    cards[lesson.runtime.correct_image_index].classList.add('correct');
+    cards[correctIndex].classList.add('correct');
   }
 
   // Обратная связь

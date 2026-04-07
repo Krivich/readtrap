@@ -28,7 +28,6 @@ body {
   display: flex;
   flex-direction: column;
   padding: 20px;
-  position: relative;
 }
 
 header {
@@ -106,15 +105,16 @@ main {
 
 /* Модалка обратной связи */
 .feedback-overlay {
-  position: absolute;
+  position: fixed;
   inset: 0;
-  bottom: 0;
   background: rgba(0, 0, 0, 0.4);
   display: flex;
   align-items: flex-end;
   justify-content: center;
   z-index: 50;
   animation: slideUp 0.3s ease-out;
+  overflow-y: auto;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
 
 @keyframes slideUp {
@@ -125,7 +125,7 @@ main {
 .feedback-modal {
   background: var(--card-bg);
   border-radius: var(--radius) var(--radius) 0 0;
-  padding: 24px 20px 32px;
+  padding: 24px 20px max(32px, env(safe-area-inset-bottom));
   width: 100%;
   max-width: 500px;
   display: flex;
