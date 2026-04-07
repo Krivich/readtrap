@@ -1,0 +1,187 @@
+:root {
+  --bg: #f8fafc;
+  --card-bg: #ffffff;
+  --primary: #3b82f6;
+  --success: #22c55e;
+  --error: #ef4444;
+  --text: #1e293b;
+  --text-light: #64748b;
+  --radius: 16px;
+  --shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
+}
+
+.app-container {
+  width: 100%;
+  max-width: 500px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+  position: relative;
+}
+
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.level-badge {
+  background: var(--card-bg);
+  padding: 8px 16px;
+  border-radius: 20px;
+  box-shadow: var(--shadow);
+  font-size: 14px;
+}
+
+.lives { font-size: 24px; letter-spacing: 2px; }
+.icon-btn {
+  background: none; border: none; font-size: 24px; cursor: pointer;
+  padding: 8px; border-radius: 50%;
+}
+.icon-btn:hover { background: #e2e8f0; }
+
+main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+}
+
+.target-container { text-align: center; margin-bottom: 10px; }
+.target-word {
+  font-size: clamp(48px, 10vw, 72px);
+  font-weight: 800;
+  color: var(--primary);
+  margin-bottom: 8px;
+}
+.instruction { color: var(--text-light); font-size: 16px; }
+
+.images-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  width: 100%;
+}
+
+.image-card {
+  background: var(--card-bg);
+  border: 3px solid transparent;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  aspect-ratio: 1;
+  cursor: pointer;
+  transition: transform 0.2s, border-color 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.image-card img {
+  width: 80%;
+  height: 80%;
+  object-fit: contain;
+  pointer-events: none;
+}
+.image-card:hover { transform: scale(1.02); }
+.image-card:active { transform: scale(0.98); }
+
+.image-card.correct { border-color: var(--success); background: #f0fdf4; }
+.image-card.wrong { border-color: var(--error); background: #fef2f2; opacity: 0.6; }
+.image-card.disabled { pointer-events: none; }
+
+/* Модалка обратной связи */
+.feedback-overlay {
+  position: absolute;
+  inset: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 50;
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+.feedback-modal {
+  background: var(--card-bg);
+  border-radius: var(--radius) var(--radius) 0 0;
+  padding: 24px 20px 32px;
+  width: 100%;
+  max-width: 500px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
+}
+
+#feedback-icon { font-size: 64px; line-height: 1; }
+#feedback-text { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
+
+.feedback-modal .parent-zone {
+  width: 100%;
+  margin: 0 0 8px;
+  padding: 12px;
+  background: #fffbeb;
+  border-radius: var(--radius);
+  border-left: 4px solid #f59e0b;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.next-btn {
+  background: var(--primary);
+  color: white;
+  border: none;
+  padding: 16px 40px;
+  font-size: 20px;
+  font-weight: 600;
+  border-radius: 30px;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+  transition: transform 0.2s;
+  min-width: 180px;
+}
+.next-btn:hover { transform: translateY(-2px); }
+.next-btn:active { transform: translateY(0); }
+.parent-label { font-weight: 600; color: #b45309; }
+.parent-zone { display: none; }
+.parent-zone:not(.hidden) { display: block; }
+
+.modal {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 100;
+}
+.modal-content {
+  background: white; padding: 32px; border-radius: var(--radius);
+  text-align: center; max-width: 80%;
+}
+.modal-content button {
+  margin-top: 20px; padding: 12px 24px;
+  background: var(--primary); color: white; border: none;
+  border-radius: 20px; font-size: 16px; cursor: pointer;
+}
+
+.hidden { display: none !important; }

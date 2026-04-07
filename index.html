@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Читаем вместе</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-container">
+    <header>
+      <div class="level-badge">
+        <span>Уровень</span>
+        <strong id="level-display">1</strong>
+      </div>
+      <div class="lives" id="lives-display">❤️❤️❤️</div>
+      <button class="icon-btn" id="reset-btn" title="Сбросить прогресс">⚙️</button>
+    </header>
+
+    <main id="game-screen">
+      <div class="target-container">
+        <h1 id="target-word" class="target-word">Загрузка...</h1>
+        <p class="instruction">Найди правильную картинку</p>
+      </div>
+
+      <div class="images-grid" id="images-grid">
+        <!-- Картинки генерируются JS -->
+      </div>
+    </main>
+
+    <!-- Модалка обратной связи -->
+    <div class="feedback-overlay hidden" id="feedback-overlay">
+      <div class="feedback-modal">
+        <div id="feedback-icon"></div>
+        <p id="feedback-text"></p>
+        <div class="parent-zone" id="parent-zone">
+          <span class="parent-label">💡 Родителям:</span>
+          <p id="parent-hint"></p>
+        </div>
+        <button class="next-btn" id="next-btn">Дальше 🚀</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Экран завершения -->
+  <div class="modal hidden" id="end-modal">
+    <div class="modal-content">
+      <h2 id="end-title">🎉 Поздравляем!</h2>
+      <p id="end-message">Курс пройден!</p>
+      <button id="restart-btn">Начать заново</button>
+    </div>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>
