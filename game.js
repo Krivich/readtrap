@@ -110,7 +110,7 @@ function startLesson() {
     card.dataset.index = idx;
 
     const img = document.createElement('img');
-    img.src = `${CONFIG.imageBaseUrl}${word}_latest.png`;
+    img.src = `${CONFIG.imageBaseUrl}${word}${CONFIG.imageSuffix}`;
     img.alt = word;
     img.loading = 'lazy';
     img.onerror = () => {
