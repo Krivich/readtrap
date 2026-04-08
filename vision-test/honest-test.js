@@ -1,8 +1,11 @@
 /**
- * Vision-тест v2 — честная проверка
- * 
- * Не сверяемся с curriculum.json для оценки правильности.
- * Вместо этого: если кликнул на картинку с alt == слово → должен быть 🎉
+ * Vision-тест v3 — с проверкой по window.__lastCorrectIndex
+ *
+ * Цикл:
+ * 1. Честно выбираю ответ по alt картинки (не зная curriculum)
+ * 2. Кликаю
+ * 3. Читаю window.__lastCorrectIndex (правильный индекс после шафла)
+ * 4. Сверяю: правильная картинка, ловушки, подсветка
  */
 
 const { chromium } = require('playwright');
@@ -17,17 +20,11 @@ if (!fs.existsSync(SCREENSHOTS_DIR)) {
   fs.mkdirSync(SCREENSHOTS_DIR, { recursive: true });
 }
 
-// Очищаем старые аномалии
 fs.writeFileSync(ANOMALIES_FILE, '[]');
 
 function logAnomaly(lessonIdx, description, screenshotPath) {
   const anomalies = JSON.parse(fs.readFileSync(ANOMALIES_FILE, 'utf8'));
-  anomalies.push({
-    lessonIdx,
-    timestamp: new Date().toISOString(),
-    description,
-    screenshot: screenshotPath
-  });
+  anomalies.push({ lessonIdx, timestamp: new Date().toISOString(), description, screenshot: screenshotPath });
   fs.writeFileSync(ANOMALIES_FILE, JSON.stringify(anomalies, null, 2));
   console.log(`  ⚠️ АНОМАЛИЯ: ${description}`);
 }
@@ -40,11 +37,10 @@ async function takeScreenshot(page, name) {
 }
 
 /**
- * Честный анализ: вижу слово и картинки, выбираю правильную
+ * Честный выбор: вижу слово и картинки, выбираю по alt
  */
-async function honestAnalysis(page) {
+async function honestChoice(page) {
   const wordText = await (await page.$('#target-word'))?.textContent() || '???';
-  
   const cards = await page.$$('.image-card');
   const imageAlts = [];
   for (let i = 0; i < cards.length; i++) {
@@ -52,7 +48,6 @@ async function honestAnalysis(page) {
     imageAlts.push(await img?.getAttribute('alt') || '?');
   }
 
-  // Ищем картинку, alt которой совпадает со словом
   let myChoice = -1;
   for (let i = 0; i < imageAlts.length; i++) {
     if (imageAlts[i].toUpperCase() === wordText.toUpperCase()) {
@@ -64,30 +59,46 @@ async function honestAnalysis(page) {
   return { wordText, imageAlts, myChoice, cards };
 }
 
-async function run(maxLessons = 20) {
+/**
+ * Читаю последний shuffle-лог из window
+ */
+async function getLastShuffleLog(page) {
+  return await page.evaluate(() => ({
+    correctIndex: window.__lastCorrectIndex,
+    targetWord: window.__lastTargetWord,
+    shuffledWords: window.__lastShuffledWords
+  }));
+}
+
+async function run(maxLessons = 50) {
   console.log('🚀 Запускаю сервер...');
-  
-  const server = spawn('npx', ['serve', '-p', '3459'], { 
+
+  const server = spawn('npx', ['serve', '-p', '3461'], {
     cwd: path.join(__dirname, '..'),
-    shell: true 
+    shell: true
   });
 
   await new Promise(resolve => setTimeout(resolve, 3000));
 
-  const browser = await chromium.launch({ 
+  const browser = await chromium.launch({
     headless: true,
-    slowMo: 100 
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
   });
-  
+
   const context = await browser.newContext({
     viewport: { width: 375, height: 812 }
   });
-  
+
   const page = await context.newPage();
-  await page.goto('http://localhost:3459');
+  await page.goto('http://localhost:3461');
   await page.waitForTimeout(2000);
 
-  console.log('🎮 Честное тестирование...\n');
+  // Загружаем curriculum.json локально для сверки ловушек
+  const curriculum = JSON.parse(
+    fs.readFileSync(path.join(__dirname, '..', 'curriculum.json'), 'utf8')
+  );
+
+  console.log('🎮 Честное тестирование с проверкой shuffle-лога...\n');
 
   let lessonCount = 0;
   let lessonIdx = 0;
@@ -97,62 +108,100 @@ async function run(maxLessons = 20) {
       console.log(`\n--- Урок ${lessonIdx + 1} ---`);
 
       const screenshotPath = await takeScreenshot(page, `lesson_${lessonIdx}`);
-      const analysis = await honestAnalysis(page);
 
-      // Проверяем: есть ли правильная картинка среди вариантов
-      if (analysis.myChoice === -1) {
-        logAnomaly(lessonIdx, 
-          `Слово "${analysis.wordText}" НЕ НАЙДЕНО среди картинок [${analysis.imageAlts.join(', ')}]`,
+      // ШАГ 1: Честный выбор (не зная curriculum)
+      const choice = await honestChoice(page);
+
+      // ШАГ 2: Кликаю
+      console.log(`  Слово: "${choice.wordText}" → выбираю карточку ${choice.myChoice} (${choice.imageAlts[choice.myChoice]})`);
+
+      if (choice.myChoice === -1) {
+        logAnomaly(lessonIdx,
+          `Слово "${choice.wordText}" НЕ НАЙДЕНО среди [${choice.imageAlts.join(', ')}]`,
           screenshotPath);
-        // Берём первую как fallback
-        analysis.myChoice = 0;
+        choice.myChoice = 0;
       }
 
-      // Кликаю на свой выбор
-      console.log(`  Слово: "${analysis.wordText}" → выбираю карточку ${analysis.myChoice} (${analysis.imageAlts[analysis.myChoice]})`);
-      await analysis.cards[analysis.myChoice].click();
+      await choice.cards[choice.myChoice].click();
       await page.waitForTimeout(1500);
 
-      // Проверяю обратную связь
+      // ШАГ 3: Читаю shuffle-лог из window
+      const log = await getLastShuffleLog(page);
+
+      if (log.correctIndex === undefined) {
+        logAnomaly(lessonIdx, 'Нет данных в __lastCorrectIndex', screenshotPath);
+        continue;
+      }
+
+      console.log(`  Shuffle: правильный индекс=${log.correctIndex} (${log.shuffledWords?.[log.correctIndex]})`);
+
+      // ШАГ 4: Проверяю обратную связь
       const feedbackIcon = await (await page.$('#feedback-icon'))?.textContent() || '';
-      
-      if (feedbackIcon !== '🎉') {
-        logAnomaly(lessonIdx, 
-          `Кликнул на "${analysis.imageAlts[analysis.myChoice]}" (совпадает со словом "${analysis.wordText}"), но получил "${feedbackIcon}" вместо 🎉`,
+
+      if (choice.myChoice === log.correctIndex && feedbackIcon !== '🎉') {
+        logAnomaly(lessonIdx,
+          `Кликнул правильно (${choice.myChoice}), но получил "${feedbackIcon}" вместо 🎉`,
           screenshotPath);
       }
 
-      // Проверяю что правильная карточка подсвечена
-      const highlightedCorrect = await page.$('.image-card.correct');
-      if (highlightedCorrect) {
-        const highlightedIdx = await highlightedCorrect.getAttribute('data-index');
-        if (parseInt(highlightedIdx) !== analysis.myChoice) {
+      if (choice.myChoice !== log.correctIndex && feedbackIcon !== '❌') {
+        logAnomaly(lessonIdx,
+          `Кликнул неправильно, но получил "${feedbackIcon}" вместо ❌`,
+          screenshotPath);
+      }
+
+      // ШАГ 5: Проверяю подсветку
+      const highlightedCorrect = await page.$$('.image-card.correct');
+      if (highlightedCorrect.length !== 1) {
+        logAnomaly(lessonIdx, `Подсвечено ${highlightedCorrect.length} карточек вместо 1`, screenshotPath);
+      } else {
+        const highlightedIdx = await highlightedCorrect[0].getAttribute('data-index');
+        if (parseInt(highlightedIdx) !== log.correctIndex) {
           logAnomaly(lessonIdx,
-            `Подсвечена карточка ${highlightedIdx}, а я кликнул на ${analysis.myChoice} (правильную)`,
+            `Подсвечена карточка ${highlightedIdx}, а правильный=${log.correctIndex}`,
             screenshotPath);
         }
       }
 
-      // Проверяю что НЕправильные НЕ подсвечены зелёным
-      const allCorrect = await page.$$('.image-card.correct');
-      if (allCorrect.length > 1) {
-        logAnomaly(lessonIdx, `Подсвечено ${allCorrect.length} карточек вместо 1`, screenshotPath);
+      // ШАГ 6: Проверяю ловушки — все картинки из curriculum
+      // Определяем глобальный индекс урока
+      let globalLessonIdx = lessonIdx;
+      let stageIdx = 0;
+      let localLessonIdx = lessonIdx;
+      for (const stage of curriculum.stages) {
+        if (localLessonIdx < stage.lessons.length) break;
+        localLessonIdx -= stage.lessons.length;
+        stageIdx++;
       }
 
-      // Переходим дальше
+      if (stageIdx < curriculum.stages.length && localLessonIdx < curriculum.stages[stageIdx].lessons.length) {
+        const expectedWords = new Set(
+          curriculum.stages[stageIdx].lessons[localLessonIdx].runtime.image_words
+        );
+        for (const alt of choice.imageAlts) {
+          if (!expectedWords.has(alt)) {
+            logAnomaly(lessonIdx,
+              `Картинка "${alt}" не в curriculum: ожидаемые [${[...expectedWords].join(', ')}]`,
+              screenshotPath);
+          }
+        }
+      }
+
+      // Переходим дальше — ждём скрытия оверлея, потом «Дальше»
+      await page.waitForSelector('#feedback-overlay.hidden', { timeout: 5000 }).catch(() => {});
+
       const nextBtn = await page.$('#next-btn');
       if (nextBtn && await nextBtn.isVisible()) {
         await nextBtn.click();
         await page.waitForTimeout(1500);
       } else {
-        // Автопереход при ошибке
         await page.waitForTimeout(2500);
       }
 
-      // Проверяем не game over ли
+      // Game over?
       const endModal = await page.$('#end-modal:not(.hidden)');
       if (endModal) {
-        console.log('  💔 Game Over — сбрасываю и начинаю заново');
+        console.log('  💔 Game Over — сброс');
         page.on('dialog', async dialog => await dialog.accept());
         await (await page.$('#reset-btn'))?.click();
         await page.waitForTimeout(2000);

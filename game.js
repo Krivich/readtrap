@@ -112,6 +112,11 @@ function startLesson() {
   }
   const newCorrectIndex = imageWords.indexOf(correctWord);
 
+  // Лог для тестирования: один индекс правильной картинки после шафла
+  window.__lastCorrectIndex = newCorrectIndex;
+  window.__lastTargetWord = lesson.runtime.target_word;
+  window.__lastShuffledWords = [...imageWords];
+
   // Генерация карточек
   imageWords.forEach((word, idx) => {
     const card = document.createElement('div');
