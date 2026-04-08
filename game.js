@@ -135,6 +135,38 @@ function startLesson() {
     card.addEventListener('click', () => handleAnswer(idx, newCorrectIndex, lesson));
     els.grid.appendChild(card);
   });
+
+  // Предзагрузка картинок следующего урока (в кэш браузера)
+  prefetchNextLesson();
+}
+
+/**
+ * Загружаем картинки следующего урока в фоновом режиме,
+ * чтобы при переходе они уже были в кэше
+ */
+function prefetchNextLesson() {
+  const stage = state.curriculum.stages[state.stageIdx];
+  let nextStageIdx = state.stageIdx;
+  let nextLessonIdx = state.lessonIdx + 1;
+
+  // Переход на следующий этап?
+  if (nextLessonIdx >= stage.lessons.length) {
+    nextLessonIdx = 0;
+    nextStageIdx = state.stageIdx + 1;
+  }
+
+  // Нет следующего урока — нечего грузить
+  if (nextStageIdx >= state.curriculum.stages.length) return;
+
+  const nextStage = state.curriculum.stages[nextStageIdx];
+  const nextLesson = nextStage.lessons[nextLessonIdx];
+  if (!nextLesson) return;
+
+  // Создаём Image объекты — браузер загрузит в кэш
+  nextLesson.runtime.image_words.forEach(word => {
+    const img = new Image();
+    img.src = `${CONFIG.imageBaseUrl}${word}${CONFIG.imageSuffix}`;
+  });
 }
 
 // Обработка ответа
