@@ -194,21 +194,19 @@ function handleAnswer(selectedIdx, correctIndex, lesson) {
   }
 
   // Логика жизней и перехода
-  if (isCorrect) {
-    els.nextBtn.style.display = '';
-  } else {
-    els.nextBtn.style.display = 'none';
+  if (!isCorrect) {
     state.lives--;
     updateUI();
     saveProgress();
 
     if (state.lives <= 0) {
-      // Жизни закончились — показываем модалку (не по таймеру)
       showEndScreen(false);
-    } else {
-      setTimeout(() => nextLesson(), 2000);
+      return;
     }
   }
+
+  // Кнопка "Дальше" всегда видна — ребёнок закрывает когда готов
+  els.nextBtn.style.display = '';
 }
 
 // Следующий урок
