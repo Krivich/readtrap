@@ -2,7 +2,7 @@
 const CONFIG = {
   curriculumPath: 'curriculum.json',
   imageBaseUrl: 'https://krivich.github.io/open-word-images/styles/new/',
-  imageSuffix: '_latest.png',
+  imageSuffix: '_latest_256.png',
   storageKey: 'reading_game_progress'
 };
 
@@ -51,10 +51,7 @@ async function init() {
 
   els.nextBtn.addEventListener('click', nextLesson);
   els.resetBtn.addEventListener('click', resetProgress);
-  els.restartBtn.addEventListener('click', () => {
-    localStorage.removeItem(CONFIG.storageKey);
-    location.reload();
-  });
+  // restartBtn управляется динамически в showEndScreen()
 }
 
 // Загрузка прогресса
@@ -112,6 +109,11 @@ function startLesson() {
   }
   const newCorrectIndex = imageWords.indexOf(correctWord);
 
+  // Лог для тестирования: один индекс правильной картинки после шафла
+  window.__lastCorrectIndex = newCorrectIndex;
+  window.__lastTargetWord = lesson.runtime.target_word;
+  window.__lastShuffledWords = [...imageWords];
+
   // Генерация карточек
   imageWords.forEach((word, idx) => {
     const card = document.createElement('div');
@@ -129,6 +131,38 @@ function startLesson() {
     card.appendChild(img);
     card.addEventListener('click', () => handleAnswer(idx, newCorrectIndex, lesson));
     els.grid.appendChild(card);
+  });
+
+  // Предзагрузка картинок следующего урока (в кэш браузера)
+  prefetchNextLesson();
+}
+
+/**
+ * Загружаем картинки следующего урока в фоновом режиме,
+ * чтобы при переходе они уже были в кэше
+ */
+function prefetchNextLesson() {
+  const stage = state.curriculum.stages[state.stageIdx];
+  let nextStageIdx = state.stageIdx;
+  let nextLessonIdx = state.lessonIdx + 1;
+
+  // Переход на следующий этап?
+  if (nextLessonIdx >= stage.lessons.length) {
+    nextLessonIdx = 0;
+    nextStageIdx = state.stageIdx + 1;
+  }
+
+  // Нет следующего урока — нечего грузить
+  if (nextStageIdx >= state.curriculum.stages.length) return;
+
+  const nextStage = state.curriculum.stages[nextStageIdx];
+  const nextLesson = nextStage.lessons[nextLessonIdx];
+  if (!nextLesson) return;
+
+  // Создаём Image объекты — браузер загрузит в кэш
+  nextLesson.runtime.image_words.forEach(word => {
+    const img = new Image();
+    img.src = `${CONFIG.imageBaseUrl}${word}${CONFIG.imageSuffix}`;
   });
 }
 
@@ -160,20 +194,19 @@ function handleAnswer(selectedIdx, correctIndex, lesson) {
   }
 
   // Логика жизней и перехода
-  if (isCorrect) {
-    els.nextBtn.style.display = '';
-  } else {
-    els.nextBtn.style.display = 'none';
+  if (!isCorrect) {
     state.lives--;
     updateUI();
     saveProgress();
 
     if (state.lives <= 0) {
-      setTimeout(() => showEndScreen(false), 1500);
-    } else {
-      setTimeout(() => nextLesson(), 2000);
+      showEndScreen(false);
+      return;
     }
   }
+
+  // Кнопка "Дальше" всегда видна — ребёнок закрывает когда готов
+  els.nextBtn.style.display = '';
 }
 
 // Следующий урок
@@ -198,9 +231,29 @@ function nextLesson() {
 // Экран завершения
 function showEndScreen(isWin) {
   els.endTitle.textContent = isWin ? '🏆 Курс пройден!' : '💔 Жизни закончились';
-  els.endMessage.textContent = isWin
-    ? 'Ты отлично читаешь! Продолжай в том же духе.'
-    : 'Не расстраивайся! Попробуй ещё раз.';
+
+  if (isWin) {
+    els.endMessage.textContent = 'Ты отлично читаешь! Продолжай в том же духе.';
+    els.restartBtn.textContent = 'Начать заново';
+    els.restartBtn.onclick = () => {
+      localStorage.removeItem(CONFIG.storageKey);
+      location.reload();
+    };
+  } else {
+    const stageNames = ['А1 (звуки)', 'А2 (первые слова)', 'В1 (сложные слова)', 'В2 (беглое чтение)'];
+    els.endMessage.textContent = `Не расстраивайся! Начнём секцию ${stageNames[state.stageIdx]} заново с полными жизнями.`;
+    els.restartBtn.textContent = 'Попробовать ещё раз';
+    els.restartBtn.onclick = () => {
+      // Сброс до начала текущей секции
+      state.lessonIdx = 0;
+      state.lives = 3;
+      saveProgress();
+      updateUI();
+      els.endModal.classList.add('hidden');
+      startLesson();
+    };
+  }
+
   els.endModal.classList.remove('hidden');
 }
 

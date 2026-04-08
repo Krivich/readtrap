@@ -1,0 +1,26 @@
+{
+  "name": "ninachit",
+  "version": "1.0.0",
+  "description": "Веб-игра для обучения детей 4–7 лет чтению на русском языке.",
+  "main": "game.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Krivich/readtrap.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Krivich/readtrap/issues"
+  },
+  "homepage": "https://github.com/Krivich/readtrap#readme",
+  "dependencies": {
+    "playwright": "^1.59.1"
+  },
+  "devDependencies": {
+    "serve": "^14.2.6"
+  }
+}
