@@ -2,7 +2,7 @@
 const CONFIG = {
   curriculumPath: 'curriculum.json',
   imageBaseUrl: 'https://krivich.github.io/open-word-images/styles/new/',
-  imageSuffix: '.png',
+  imageSuffix: '_latest.png',
   storageKey: 'reading_game_progress'
 };
 
