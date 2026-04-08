@@ -51,10 +51,7 @@ async function init() {
 
   els.nextBtn.addEventListener('click', nextLesson);
   els.resetBtn.addEventListener('click', resetProgress);
-  els.restartBtn.addEventListener('click', () => {
-    localStorage.removeItem(CONFIG.storageKey);
-    location.reload();
-  });
+  // restartBtn управляется динамически в showEndScreen()
 }
 
 // Загрузка прогресса
@@ -206,7 +203,8 @@ function handleAnswer(selectedIdx, correctIndex, lesson) {
     saveProgress();
 
     if (state.lives <= 0) {
-      setTimeout(() => showEndScreen(false), 1500);
+      // Жизни закончились — показываем модалку (не по таймеру)
+      showEndScreen(false);
     } else {
       setTimeout(() => nextLesson(), 2000);
     }
@@ -235,9 +233,29 @@ function nextLesson() {
 // Экран завершения
 function showEndScreen(isWin) {
   els.endTitle.textContent = isWin ? '🏆 Курс пройден!' : '💔 Жизни закончились';
-  els.endMessage.textContent = isWin
-    ? 'Ты отлично читаешь! Продолжай в том же духе.'
-    : 'Не расстраивайся! Попробуй ещё раз.';
+
+  if (isWin) {
+    els.endMessage.textContent = 'Ты отлично читаешь! Продолжай в том же духе.';
+    els.restartBtn.textContent = 'Начать заново';
+    els.restartBtn.onclick = () => {
+      localStorage.removeItem(CONFIG.storageKey);
+      location.reload();
+    };
+  } else {
+    const stageNames = ['А1 (звуки)', 'А2 (первые слова)', 'В1 (сложные слова)', 'В2 (беглое чтение)'];
+    els.endMessage.textContent = `Не расстраивайся! Начнём секцию ${stageNames[state.stageIdx]} заново с полными жизнями.`;
+    els.restartBtn.textContent = 'Попробовать ещё раз';
+    els.restartBtn.onclick = () => {
+      // Сброс до начала текущей секции
+      state.lessonIdx = 0;
+      state.lives = 3;
+      saveProgress();
+      updateUI();
+      els.endModal.classList.add('hidden');
+      startLesson();
+    };
+  }
+
   els.endModal.classList.remove('hidden');
 }
 
