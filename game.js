@@ -20,9 +20,19 @@ class BaseProvider {
 class StaticProvider extends BaseProvider {
   generate(ctx) {
     const c = ctx.config;
+    const target = c.target_word || '???';
+    // Поддержка: runtime.image_words (старый формат) или config.distractors (новый)
+    let imageWords;
+    if (c.image_words && c.image_words.length) {
+      imageWords = [...c.image_words];
+    } else if (c.distractors && c.distractors.length) {
+      imageWords = [target.toLowerCase(), ...c.distractors];
+    } else {
+      imageWords = [];
+    }
     return {
-      target_word: c.target_word || '???',
-      image_words: [...(c.image_words || [])],
+      target_word: target.toUpperCase(),
+      image_words: imageWords,
       correct_image_index: c.correct_image_index ?? 0
     };
   }
@@ -59,6 +69,7 @@ class CombinatorialProvider extends BaseProvider {
   generate(ctx) {
     if (ctx.isRetry && ctx.cachedRuntime) return ctx.cachedRuntime;
     const c = ctx.config;
+    // word_pool: локальный (урок) → stage → fallback
     const pool = c.word_pool || [];
     if (!pool.length) return { target_word: 'НЕТ ДАННЫХ', image_words: ['кот','кит','рот','сом'], correct_image_index: 0 };
 
@@ -67,10 +78,7 @@ class CombinatorialProvider extends BaseProvider {
     let minUsage = Infinity;
     for (const word of pool) {
       const u = this.usage.get(word) || 0;
-      if (u < minUsage) {
-        minUsage = u;
-        target = word;
-      }
+      if (u < minUsage) { minUsage = u; target = word; }
     }
 
     const count = c.distractor_count || 3;
@@ -164,19 +172,25 @@ function calculateAvgReaction(reactionTime) {
 // ==========================================
 async function init() {
   loadProgress();
+
+  // Поддержка кастомного конфига через URL: ?curriculum=stress-test.json
+  const params = new URLSearchParams(window.location.search);
+  const customConfig = params.get('curriculum') || CONFIG.curriculumPath;
+
   try {
-    const res = await fetch(CONFIG.curriculumPath);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const res = await fetch(customConfig);
+    if (!res.ok) throw new Error(`HTTP ${res.status} — ${customConfig}`);
     state.curriculum = await res.json();
     if (!state.curriculum.stages || !state.curriculum.stages.length) {
-      throw new Error('Нет stages в curriculum.json');
+      throw new Error('Нет stages в ' + customConfig);
     }
+    console.log(`📚 Загружен конфиг: ${customConfig} (${state.curriculum.stages.length} стадий)`);
     enterStage();
     startLesson(false);
   } catch (err) {
     els.targetWord.textContent = '❌ Ошибка загрузки';
     console.error('❌ Init error:', err);
-    alert('Положите curriculum.json рядом с index.html и запустите через локальный сервер (Live Server, npx serve и т.д.)');
+    alert(`Не удалось загрузить ${customConfig}\nПроверьте что файл лежит рядом с index.html`);
   }
 
   els.nextBtn.addEventListener('click', nextLesson);
@@ -198,9 +212,13 @@ function enterStage() {
 }
 
 /**
- * Выбор провайдера по приоритету: lesson → stage → curriculum → static
+ * Выбор провайдера по приоритету:
+ * - Если есть runtime → static (обратная совместимость)
+ * - Иначе: lesson.provider → stage.provider → curriculum.default_provider → static
  */
 function selectProvider(stage, lessonConfig) {
+  // Runtime = статический урок, игнорируем провайдер стадии
+  if (lessonConfig?.runtime) return PROVIDERS.static;
   const name = lessonConfig?.provider || stage?.provider || state.curriculum?.default_provider || 'static';
   return PROVIDERS[name] || PROVIDERS.static;
 }
@@ -266,8 +284,20 @@ function startLesson(isRetry = false) {
 
   state.providerInstance = selectProvider(stage, lessonConfig);
 
+  // Формируем config: для динамических провайдеров мержим stage (word_pool и т.д.) + lesson overrides
+  const isDynamicLesson = lessonConfig?.provider;
+  let mergedConfig;
+  if (isDynamicLesson) {
+    mergedConfig = { ...stage, ...(lessonConfig.config || lessonConfig.runtime || {}) };
+  } else if (state.lessonIdx >= lessons.length && stage.provider) {
+    // Виртуальный урок для динамической стадии
+    mergedConfig = { ...stage };
+  } else {
+    mergedConfig = lessonConfig.config || lessonConfig.runtime || {};
+  }
+
   const context = {
-    config: lessonConfig.config || lessonConfig.runtime || {},
+    config: mergedConfig,
     metrics: { ...state.metrics },
     isRetry,
     cachedRuntime: state.currentRuntime
@@ -390,18 +420,15 @@ function handleAnswer(selectedIdx, correctIndex, meta) {
 }
 
 function nextLesson() {
-  state.currentRuntime = null; // 🔓 Очищаем кэш
+  state.currentRuntime = null;
   state.lessonIdx++;
 
   const stage = state.curriculum.stages[state.stageIdx];
   const lessons = stage?.lessons || [];
+  const isDynamicStage = stage?.provider && !stage?.lessons?.length; // Динамическая = провайдер есть + уроков нет
 
-  // Проверяем: статический ли это урок или динамический
-  const currentLesson = lessons[state.lessonIdx - 1]; // предыдущий (который только что прошёл)
-  const isDynamic = currentLesson?.provider ? true : false;
-
-  // Переход к следующей стадии (только для статических уроков)
-  if (!isDynamic && state.lessonIdx >= lessons.length) {
+  // Переход к следующей стадии: только для статических, где уроки закончились
+  if (!isDynamicStage && state.lessonIdx >= lessons.length) {
     state.lessonIdx = 0;
     state.stageIdx++;
     if (state.stageIdx >= state.curriculum.stages.length) {

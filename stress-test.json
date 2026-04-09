@@ -1,0 +1,137 @@
+{
+  "default_provider": "static",
+  "asset_map": {
+    "КОТ": "кот",
+    "КО-Т": "кот",
+    "CAT": "кот",
+    "ДОМ": "дом",
+    "HOME": "дом",
+    "ГРИБ": "гриб",
+    "СТУЛ": "стул"
+  },
+  "stages": [
+    {
+      "id": "TEST_S1_STATIC_AND_OVERRIDES",
+      "name": "Тест 1: Статика + Оверрайды",
+      "provider": "static",
+      "asset_map": {
+        "ДОМ": "house_override_test"
+      },
+      "lessons": [
+        {
+          "id": "L01_StandardStatic",
+          "runtime": {
+            "target_word": "КОТ",
+            "image_words": ["кот", "кит", "рот", "сом"],
+            "correct_image_index": 0
+          },
+          "meta": { "pedagogical_goal": "Базовый урок (обратная совместимость)", "parent_note": "Проверка стандартного runtime" }
+        },
+        {
+          "id": "L02_ConfigStatic",
+          "config": {
+            "target_word": "МАК",
+            "distractors": ["рак", "лак", "бак"]
+          },
+          "meta": { "pedagogical_goal": "StaticProvider через config.distractors" }
+        },
+        {
+          "id": "L03_PoolOverride",
+          "provider": "pool",
+          "config": {
+            "target_word": "СОК",
+            "distractor_pool": ["суп", "сыр", "сук", "сон", "сок"],
+            "distractor_count": 3
+          },
+          "meta": { "pedagogical_goal": "Оверрайд на PoolProvider" }
+        },
+        {
+          "id": "L04_UnknownProvider",
+          "provider": "ai_magic_provider_42",
+          "config": {
+            "target_word": "ЖУК",
+            "image_words": ["жук", "лук", "бык", "мак"],
+            "correct_image_index": 0
+          },
+          "meta": { "pedagogical_goal": "Фоллбек на static при неизвестном провайдере" }
+        }
+      ]
+    },
+    {
+      "id": "TEST_S2_DYNAMIC_AND_ASSETS",
+      "name": "Тест 2: Ассет-мап + Динамика",
+      "provider": "combinatorial",
+      "word_pool": ["рот", "кот", "дом", "мак", "сок", "лес", "лев"],
+      "lessons": [
+        {
+          "id": "L05_AssetMapSyllables",
+          "runtime": {
+            "target_word": "КО-Т",
+            "image_words": ["кот", "кит", "рот", "сом"],
+            "correct_image_index": 0
+          },
+          "meta": { "pedagogical_goal": "Проверка маппинга КО-Т → кот_latest_256.png" }
+        },
+        {
+          "id": "L06_AssetMapEnglish",
+          "runtime": {
+            "target_word": "CAT",
+            "image_words": ["cat", "bat", "hat", "rat"],
+            "correct_image_index": 0
+          },
+          "meta": { "pedagogical_goal": "Проверка маппинга CAT → кот_latest_256.png" }
+        },
+        {
+          "id": "L07_CombinatorialAuto",
+          "provider": "combinatorial",
+          "config": {
+            "distractor_count": 3
+          },
+          "meta": { "pedagogical_goal": "Комбинаторная генерация из word_pool стадии" }
+        },
+        {
+          "id": "L08_CombinatorialCustom",
+          "provider": "combinatorial",
+          "config": {
+            "word_pool": ["гриб", "краб", "хлеб", "зуб"],
+            "distractor_count": 3
+          },
+          "meta": { "pedagogical_goal": "Комбинаторика с локальным пулом" }
+        }
+      ]
+    },
+    {
+      "id": "TEST_S3_EDGE_CASES_AND_CRASHES",
+      "name": "Тест 3: Краш-тесты",
+      "lessons": [
+        {
+          "id": "L09_EmptyPool",
+          "config": {
+            "target_word": "ПУСТОТА",
+            "distractor_pool": []
+          },
+          "meta": { "pedagogical_goal": "Обработка пустого пула дистракторов без краша" }
+        },
+        {
+          "id": "L10_EmptyTarget",
+          "config": {
+            "target_word": ""
+          },
+          "meta": { "pedagogical_goal": "Пустое целевое слово" }
+        },
+        {
+          "id": "L11_MissingConfig",
+          "meta": { "pedagogical_goal": "Урок без runtime и config" }
+        }
+      ]
+    },
+    {
+      "id": "TEST_S4_EMPTY_STAGE_DYNAMIC",
+      "name": "Тест 4: Динамическая генерация (пустая стадия)",
+      "provider": "combinatorial",
+      "word_pool": ["птица", "печь", "книга", "сердце", "коньки", "зонтик"],
+      "lessons": [],
+      "meta": { "pedagogical_goal": "Стадия без уроков. Должна генерировать на лету" }
+    }
+  ]
+}
