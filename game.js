@@ -504,12 +504,13 @@ function showEndScreen(isWin) {
     els.restartBtn.textContent = 'Попробовать ещё раз';
     els.restartBtn.onclick = () => {
       playSound('click');
-      // 🔁 Детерминированный retry: тот же урок, 3 жизни
+      // 🔁 Откат до начала секции + восстановление жизней
+      state.lessonIdx = 0;
       state.lives = 3;
       saveProgress();
       updateUI();
       els.endModal.classList.add('hidden');
-      startLesson(true); // ← isRetry = true
+      startLesson(false);
     };
   }
 
