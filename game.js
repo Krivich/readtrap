@@ -113,14 +113,16 @@ const sounds = {
   click: null,    // клик по кнопке "Дальше" / "Попробовать ещё раз"
   success: null,  // правильный ответ
   wrong: null,    // неправильный ответ
-  gameover: null  // Game Over / победа (финальный экран)
+  win: null,      // финальная победа
+  lose: null      // Game Over
 };
 
 function initSounds() {
-  sounds.click = new Audio('tick_004.ogg');
-  sounds.success = new Audio('pluck_002.ogg');
-  sounds.wrong = new Audio('scratch_005.ogg');
-  sounds.gameover = new Audio('error_008.ogg');
+  sounds.click = new Audio('sounds/click_001.ogg');
+  sounds.success = new Audio('sounds/pluck_002.ogg');
+  sounds.wrong = new Audio('sounds/scratch_005.ogg');
+  sounds.win = new Audio('sounds/maximize_005.ogg');
+  sounds.lose = new Audio('sounds/minimize_005.ogg');
   Object.values(sounds).forEach(s => { if (s) s.load(); });
 }
 
@@ -429,7 +431,7 @@ function handleAnswer(selectedIdx, correctIndex, meta) {
     state.metrics.streak = 0;
     updateUI();
     saveProgress();
-    playSound('gameover');
+    playSound('lose');
     setTimeout(() => showEndScreen(false), 800);
     return;
   }
@@ -485,6 +487,7 @@ function nextLesson() {
 
 function showEndScreen(isWin) {
   els.endTitle.textContent = isWin ? '🏆 Курс пройден!' : '💔 Жизни закончились';
+  playSound(isWin ? 'win' : 'lose');
 
   const stageName = state.curriculum.stages[state.stageIdx]?.name || '';
 
