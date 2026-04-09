@@ -158,6 +158,15 @@ async function run() {
   console.log('\n📋 ТЕСТ 2: Сброс → 3 ошибки → Game Over → Retry');
   log('TEST2', 'Сброс прогресса');
 
+  // Закрываем финальную модалку если есть (после прохождения всех уроков)
+  const endModal = await page.$('#end-modal:not(.hidden)');
+  if (endModal) {
+    log('INFO', 'Закрываю финальную модалку');
+    const restartBtn = await page.$('#restart-btn');
+    if (restartBtn) await restartBtn.click();
+    await page.waitForTimeout(1000);
+  }
+
   page.on('dialog', async dialog => { await dialog.accept(); });
   await (await page.$('#reset-btn'))?.click();
   await page.waitForTimeout(2000);

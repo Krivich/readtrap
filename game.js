@@ -21,12 +21,17 @@ class StaticProvider extends BaseProvider {
   generate(ctx) {
     const c = ctx.config;
     const target = c.target_word || '???';
-    // Поддержка: runtime.image_words (старый формат) или config.distractors (новый)
     let imageWords;
     if (c.image_words && c.image_words.length) {
       imageWords = [...c.image_words];
     } else if (c.distractors && c.distractors.length) {
       imageWords = [target.toLowerCase(), ...c.distractors];
+    } else if (c.distractor_pool && c.distractor_pool.length) {
+      // Fallback: берём случайные дистракторы из пула
+      const pool = c.distractor_pool.filter(w => w.toLowerCase() !== target.toLowerCase());
+      const count = c.distractor_count || 3;
+      const shuffled = this._shuffle([...pool]);
+      imageWords = [target.toLowerCase(), ...shuffled.slice(0, count)];
     } else {
       imageWords = [];
     }
@@ -247,14 +252,10 @@ function enterStage() {
 }
 
 /**
- * Выбор провайдера по приоритету:
- * - Если есть runtime → static (обратная совместимость)
- * - Иначе: lesson.provider → stage.provider → curriculum.default_provider → static
+ * Выбор провайдера — всегда явный из урока или stage
  */
 function selectProvider(stage, lessonConfig) {
-  // Runtime = статический урок, игнорируем провайдер стадии
-  if (lessonConfig?.runtime) return PROVIDERS.static;
-  const name = lessonConfig?.provider || stage?.provider || state.curriculum?.default_provider || 'static';
+  const name = lessonConfig?.provider || stage?.provider || 'static';
   return PROVIDERS[name] || PROVIDERS.static;
 }
 
@@ -303,33 +304,22 @@ function startLesson(isRetry = false) {
 
   const lessons = stage.lessons || [];
 
-  // Определяем конфиг урока: статический из JSON или виртуальный для динамических
+  // Определяем урок: статический из списка или виртуальный для динамической стадии
   let lessonConfig;
-  let isDynamic = false;
-
   if (state.lessonIdx < lessons.length) {
     lessonConfig = lessons[state.lessonIdx];
-    // Если у урока нет provider — это статический урок
-    isDynamic = !!lessonConfig.provider;
+  } else if (stage.provider && !lessons.length) {
+    // Динамическая стадия без уроков — генерируем на лету
+    lessonConfig = { provider: stage.provider, config: stage };
   } else {
-    // Виртуальный урок для динамических провайдеров
-    lessonConfig = { provider: stage.provider || 'combinatorial', config: stage };
-    isDynamic = true;
+    showEndScreen(true);
+    return;
   }
 
   state.providerInstance = selectProvider(stage, lessonConfig);
 
-  // Формируем config: для динамических провайдеров мержим stage (word_pool и т.д.) + lesson overrides
-  const isDynamicLesson = lessonConfig?.provider;
-  let mergedConfig;
-  if (isDynamicLesson) {
-    mergedConfig = { ...stage, ...(lessonConfig.config || lessonConfig.runtime || {}) };
-  } else if (state.lessonIdx >= lessons.length && stage.provider) {
-    // Виртуальный урок для динамической стадии
-    mergedConfig = { ...stage };
-  } else {
-    mergedConfig = lessonConfig.config || lessonConfig.runtime || {};
-  }
+  // Формируем config: мержим stage (word_pool, asset_map и т.д.) + overrides урока
+  const mergedConfig = { ...stage, ...(lessonConfig.config || lessonConfig.runtime || {}) };
 
   const context = {
     config: mergedConfig,
@@ -346,14 +336,12 @@ function startLesson(isRetry = false) {
 
   const meta = lessonConfig.meta || {};
   renderLesson(runtime, meta);
-  if (!isDynamic) prefetchNextLesson();
 }
 
 function renderLesson(runtime, meta) {
   els.targetWord.textContent = runtime.target_word;
   updateUI();
 
-  // Fisher-Yates shuffle
   const imageWords = [...runtime.image_words];
   const correctWord = imageWords[runtime.correct_image_index ?? 0];
   for (let i = imageWords.length - 1; i > 0; i--) {
@@ -362,7 +350,6 @@ function renderLesson(runtime, meta) {
   }
   const newCorrectIndex = imageWords.indexOf(correctWord);
 
-  // Лог для тестов
   window.__lastCorrectIndex = newCorrectIndex;
   window.__lastTargetWord = runtime.target_word;
   window.__lastShuffledWords = [...imageWords];
@@ -371,46 +358,21 @@ function renderLesson(runtime, meta) {
     const card = document.createElement('div');
     card.className = 'image-card';
     card.dataset.index = idx;
-
     const img = document.createElement('img');
     const assetKey = resolveAssetKey(word);
     img.src = `${CONFIG.imageBaseUrl}${assetKey}${CONFIG.imageSuffix}`;
     img.alt = word;
     img.loading = 'lazy';
     img.onerror = () => { img.src = SVG_FALLBACK; };
-
     card.appendChild(img);
     card.addEventListener('click', () => handleAnswer(idx, newCorrectIndex, meta));
     els.grid.appendChild(card);
   });
 }
 
-function prefetchNextLesson() {
-  const stage = state.curriculum.stages[state.stageIdx];
-  if (!stage?.lessons) return;
-
-  let nextStageIdx = state.stageIdx;
-  let nextLessonIdx = state.lessonIdx + 1;
-
-  if (nextLessonIdx >= stage.lessons.length) {
-    nextLessonIdx = 0;
-    nextStageIdx = state.stageIdx + 1;
-  }
-  if (nextStageIdx >= state.curriculum.stages.length) return;
-
-  const nextStage = state.curriculum.stages[nextStageIdx];
-  const nextLesson = nextStage.lessons?.[nextLessonIdx];
-  if (!nextLesson?.runtime?.image_words) return;
-
-  // Предзагружаем картинки следующего урока
-  const assetMap = { ...state.assetMap, ...(nextStage.asset_map || {}) };
-  nextLesson.runtime.image_words.forEach(word => {
-    const key = assetMap[word] || word.toLowerCase();
-    const img = new Image();
-    img.src = `${CONFIG.imageBaseUrl}${key}${CONFIG.imageSuffix}`;
-  });
-}
-
+// ==========================================
+// 🎯 ANSWER HANDLING
+// ==========================================
 function handleAnswer(selectedIdx, correctIndex, meta) {
   if (state.isAnswered) return;
   state.isAnswered = true;

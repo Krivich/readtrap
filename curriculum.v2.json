@@ -1,0 +1,112 @@
+{
+  "default_provider": "static",
+  "asset_map": {
+    "КОТ": "кот",
+    "КО-Т": "кот",
+    "CAT": "кот",
+    "ДОМ": "дом",
+    "ДО-М": "дом",
+    "HOME": "дом",
+    "ГРИБ": "гриб",
+    "ГР-ИБ": "гриб",
+    "СТУЛ": "стул",
+    "СТУ-Л": "стул"
+  },
+  "stages": [
+    {
+      "id": "A1",
+      "name": "Первые шаги",
+      "description": "Односложные слова. Тренировка чёткого прочтения гласных в центре и различения похожих согласных.",
+      "provider": "pool",
+      "word_pool": ["кот", "дом", "мак", "сок", "лес", "жук", "рот", "мяч", "гриб", "стул", "кит", "рак", "лак", "бак", "суп", "сук", "сыр", "лев", "лис", "лук", "бык", "ключ", "грач", "меч", "краб", "хлеб", "зуб", "стол", "стук", "слон", "ком", "сом", "дым"],
+      "asset_map": { "КО-Т": "кот", "ДО-М": "дом", "МА-К": "мак" },
+      "lessons": [
+        { "id": "A1-L01", "config": { "target_word": "КОТ", "distractor_pool": ["кит", "рот", "сом"], "distractor_count": 3 }, "meta": { "pedagogical_goal": "Чёткое прочтение ударной гласной О в центре слова", "trap_logic": "Замена О→И, К→С", "parent_note": "«Посмотри: у кота усы и уши, а у кита хвост и фонтан»", "theme": "Животные", "difficulty": 1 } },
+        { "id": "A1-L02", "config": { "target_word": "ДОМ", "distractor_pool": ["дым", "ком", "сом"], "distractor_count": 3 }, "meta": { "pedagogical_goal": "Контроль начальной и конечной согласной, слитное чтение", "trap_logic": "Замена Д→К/С, О→Ы", "parent_note": "«Дом стоит на земле, а дым уходит в небо»", "theme": "Окружающий мир", "difficulty": 1 } },
+        { "id": "A1-L03", "provider": "pool", "config": { "target_word": "МАК", "distractor_count": 3 }, "meta": { "pedagogical_goal": "Различение слов, отличающихся только первой согласной", "trap_logic": "М→Р/Л/Б", "parent_note": "«Мак — это красный цветок, а рак живёт в реке»", "theme": "Природа", "difficulty": 1 } },
+        { "id": "A1-L04", "provider": "pool", "config": { "target_word": "СОК", "distractor_count": 3 }, "meta": { "pedagogical_goal": "Чтение закрытого слога, контроль окончания", "trap_logic": "О→У, К→П/М", "parent_note": "«Сок пьют из стакана, а суп едят ложкой»", "theme": "Еда", "difficulty": 1 } },
+        { "id": "A1-L05", "provider": "pool", "config": { "target_word": "ЛЕС", "distractor_count": 3 }, "meta": { "pedagogical_goal": "Работа с парными согласными, внимание к центру", "trap_logic": "Е→И, С→В/К", "parent_note": "«В лесу растут деревья, а лев живёт в зоопарке»", "theme": "Природа", "difficulty": 1 } },
+        { "id": "A1-L06", "config": { "target_word": "ЖУК", "distractor_pool": ["лук", "бык", "мак"], "distractor_count": 3 }, "meta": { "pedagogical_goal": "Различение шипящих и сонорных согласных", "trap_logic": "Ж→Л/Б/М", "parent_note": "«Жук жужжит и летает, а лук кладут в суп»", "theme": "Природа", "difficulty": 1 } },
+        { "id": "A1-L07", "config": { "target_word": "РОТ", "distractor_pool": ["кот", "нос", "год"], "distractor_count": 3 }, "meta": { "pedagogical_goal": "Внимание к центру слова, предотвращение подмены", "trap_logic": "Р→К/Н/Г", "parent_note": "«Рот нужен, чтобы говорить, а кот — это питомец»", "theme": "Тело и животные", "difficulty": 1 } },
+        { "id": "A1-L08", "provider": "combinatorial", "config": { "distractor_count": 3 }, "meta": { "pedagogical_goal": "Чтение мягкого знака и Ь в конце слова", "trap_logic": "М→К/Г, Ь→Ч", "parent_note": "«Мячом играют во дворе, а ключом открывают дверь»", "theme": "Игрушки", "difficulty": 2 } },
+        { "id": "A1-L09", "config": { "target_word": "ГРИБ", "distractor_pool": ["краб", "хлеб", "зуб"], "distractor_count": 3 }, "meta": { "pedagogical_goal": "Чтение стечения согласных в начале слова", "trap_logic": "И→А/Е/У", "parent_note": "«Гриб растёт под деревом, а хлеб пекут в пекарне»", "theme": "Еда и природа", "difficulty": 2 } },
+        { "id": "A1-L10", "provider": "combinatorial", "config": { "distractor_count": 3 }, "meta": { "pedagogical_goal": "Различение У/О и Л/К/Н, контроль окончания", "trap_logic": "У→О, Л→К/Н", "parent_note": "«На стуле сидят, а за столом обедают»", "theme": "Мебель", "difficulty": 2 } }
+      ]
+    },
+    {
+      "id": "A2",
+      "name": "Учимся склеивать",
+      "description": "Двусложные слова. Тренировка плавного соединения слогов и различения похожих окончаний.",
+      "provider": "pool",
+      "word_pool": ["мама", "лапа", "кошка", "мышка", "река", "сосна", "ветер", "лето", "миска", "рыба", "рама", "папа", "лама", "рыба", "суп", "ложка", "мошка", "крошка", "мишка", "мушка", "плюшка", "рука", "рога", "весна", "роса", "коса", "вечер", "веник", "веер", "лото", "фото", "мясо", "маска", "сказка"],
+      "lessons": [
+        { "id": "A2-L01", "config": { "target_word": "МАМА", "distractor_pool": ["рама", "папа", "лама"], "distractor_count": 3 }, "meta": { "pedagogical_goal": "Чтение повторяющихся слогов, контроль ударения", "trap_logic": "М→Р/П/Л", "parent_note": "«Мама — твой родной человек, а лама — животное из зоопарка»", "theme": "Семья", "difficulty": 3 } },
+        { "id": "A2-L02", "provider": "pool", "config": { "target_word": "ЛАПА", "distractor_count": 3 }, "meta": { "pedagogical_goal": "Склеивание слогов ЛА-ПА, контроль середины", "trap_logic": "Л→П, -АПА→-АМПА", "parent_note": "«Лапа у зверя, а лампа светит на столе»", "theme": "Части тела и предметы", "difficulty": 3 } },
+        { "id": "A2-L03", "config": { "target_word": "КОШКА", "distractor_pool": ["ложка", "мошка", "крошка"], "distractor_count": 3 }, "meta": { "pedagogical_goal": "Работа с суффиксом -ШКА, внимание к началу слова", "trap_logic": "К→Л/М/КР", "parent_note": "«Кошка мурлычет, а ложкой едят суп»", "theme": "Животные и быт", "difficulty": 3 } },
+        { "id": "A2-L04", "config": { "target_word": "МЫШКА", "distractor_pool": ["мишка", "мушка", "плюшка"], "distractor_count": 3 }, "meta": { "pedagogical_goal": "Различение безударных гласных Ы/И/У", "trap_logic": "Ы→И/У, М→П", "parent_note": "«Мышка живёт в норе, а мишка — мягкая игрушка»", "theme": "Игрушки и животные", "difficulty": 3 } },
+        { "id": "A2-L05", "config": { "target_word": "РЕКА", "distractor_pool": ["рука", "рама", "рога"], "distractor_count": 3 }, "meta": { "pedagogical_goal": "Чёткое чтение ударной Е в середине слова", "trap_logic": "Е→У/А/О", "parent_note": "«Река течёт, а рука помогает держать предметы»", "theme": "Природа и тело", "difficulty": 3 } },
+        { "id": "A2-L06", "provider": "combinatorial", "config": { "distractor_count": 3 }, "meta": { "pedagogical_goal": "Различение С/В и О/Е, контроль ударного слога", "trap_logic": "С→В, О→Е", "parent_note": "«Сосна — вечнозелёное дерево, а весна — тёплое время года»", "theme": "Природа", "difficulty": 4 } },
+        { "id": "A2-L07", "config": { "target_word": "ВЕТЕР", "distractor_pool": ["вечер", "веник", "веер"], "distractor_count": 3 }, "meta": { "pedagogical_goal": "Контроль Т/Ч и окончания -ЕР/-ЕР", "trap_logic": "Т→Ч/Н/Р", "parent_note": "«Ветер дует на улице, а веником подметают пол»", "theme": "Погода и быт", "difficulty": 4 } },
+        { "id": "A2-L08", "config": { "target_word": "ЛЕТО", "distractor_pool": ["лото", "фото", "мясо"], "distractor_count": 3 }, "meta": { "pedagogical_goal": "Чтение открытых слогов ЛЕ-ТО, контроль окончания", "trap_logic": "Е→О", "parent_note": "«Летом жарко и каникулы, а в лото играют с фишками»", "theme": "Времена года", "difficulty": 4 } },
+        { "id": "A2-L09", "provider": "pool", "config": { "target_word": "МИСКА", "distractor_count": 3 }, "meta": { "pedagogical_goal": "Различение И/Ы, С/З, контроль второго слога", "trap_logic": "И→Ы/А, С→З", "parent_note": "«В миске лежит корм, а мишка спит в берлоге»", "theme": "Посуда и игрушки", "difficulty": 4 } },
+        { "id": "A2-L10", "provider": "pool", "config": { "target_word": "РЫБА", "distractor_count": 3 }, "meta": { "pedagogical_goal": "Закрепление чтения Р-Ы-Б-А, контроль безударных", "trap_logic": "Ы→А/Е, Б→М/Л", "parent_note": "«Рыба плавает в воде, а репа растёт на грядке»", "theme": "Животные и еда", "difficulty": 4 } }
+      ]
+    },
+    {
+      "id": "B1",
+      "name": "Сложные согласные и мягкий знак",
+      "description": "Двусложные слова с кластерами согласных, Ь и шипящими. Тренировка точного прочтения середины слова.",
+      "provider": "static",
+      "lessons": [
+        { "id": "B1-L01", "config": { "target_word": "ПТИЦА", "distractors": ["пища", "улица", "птичка"] }, "meta": { "pedagogical_goal": "Чтение стечения ПТ и окончания -ИЦА", "trap_logic": "Т→Щ/Л, И→У, Ц→Ч", "parent_note": "«Птица летает, а улица — это дорога для машин»", "theme": "Животные и место", "difficulty": 5 } },
+        { "id": "B1-L02", "config": { "target_word": "ПЕЧКА", "distractors": ["речка", "свечка", "точка"] }, "meta": { "pedagogical_goal": "Различение П/Р/С в начале, суффикс -ЕЧК", "trap_logic": "П→Р/С/Т", "parent_note": "«В печке пекут пироги, а речка течёт в лесу»", "theme": "Быт и природа", "difficulty": 5 } },
+        { "id": "B1-L03", "config": { "target_word": "КНИГА", "distractors": ["крупа", "клип", "книжка"] }, "meta": { "pedagogical_goal": "Чтение НГ в середине, контроль окончания", "trap_logic": "Н→Р/Л, И→У", "parent_note": "«Книгу читают, а крупу варят на завтрак»", "theme": "Предметы и еда", "difficulty": 5 } },
+        { "id": "B1-L04", "config": { "target_word": "СЕРДЦЕ", "distractors": ["сверло", "сетка", "сестра"] }, "meta": { "pedagogical_goal": "Чтение сложного стечения РДЦ в середине", "trap_logic": "Д→В/Т/С", "parent_note": "«Сердце бьётся в груди, а сверлом делают дырки»", "theme": "Тело и инструменты", "difficulty": 5 } },
+        { "id": "B1-L05", "config": { "target_word": "КОНЬКИ", "distractors": ["кони", "конфеты", "банки"] }, "meta": { "pedagogical_goal": "Чтение мягкого знака и окончания -ЬКИ", "trap_logic": "Ь→И/Ф", "parent_note": "«На коньках катаются зимой, а конфеты едят на праздник»", "theme": "Спорт и сладости", "difficulty": 5 } },
+        { "id": "B1-L06", "config": { "target_word": "ЗОНТИК", "distractors": ["змея", "зенит", "зуб"] }, "meta": { "pedagogical_goal": "Контроль начала З и окончания -ТИК", "trap_logic": "О→Е/И/У", "parent_note": "«Зонтик спасает от дождя, а змея ползает по земле»", "theme": "Предметы и животные", "difficulty": 6 } },
+        { "id": "B1-L07", "config": { "target_word": "ВЕЩЬ", "distractors": ["вишня", "веник", "веер"] }, "meta": { "pedagogical_goal": "Чтение слова с мягким знаком и щ", "trap_logic": "Щ→Ш/Н/Р", "parent_note": "«Вещь — это любая вещь в сумке, а вишня — красная ягода»", "theme": "Предметы и фрукты", "difficulty": 6 } },
+        { "id": "B1-L08", "config": { "target_word": "ДОЧЬ", "distractors": ["дым", "дно", "дом"] }, "meta": { "pedagogical_goal": "Чтение мягкого знака в конце после Ч", "trap_logic": "Ч→М/Н", "parent_note": "«Дочь — это девочка в семье, а дым идёт из трубы»", "theme": "Семья и явления", "difficulty": 6 } },
+        { "id": "B1-L09", "config": { "target_word": "СЛОНЫ", "distractors": ["слон", "сани", "сало"] }, "meta": { "pedagogical_goal": "Различение ед. и мн. числа, контроль окончания", "trap_logic": "Ы→О/А", "parent_note": "«Слоны ходят стадами, а сани скользят по снегу»", "theme": "Животные и транспорт", "difficulty": 6 } },
+        { "id": "B1-L10", "config": { "target_word": "ЛОЖКА", "distractors": ["лодка", "люлька", "лужа"] }, "meta": { "pedagogical_goal": "Различение Ж/Д/Ь/Ж в середине, контроль суффикса", "trap_logic": "Ж→Д/Ь/Ж", "parent_note": "«Ложкой едят кашу, а на лодке плавают по воде»", "theme": "Посуда и транспорт", "difficulty": 6 } }
+      ]
+    },
+    {
+      "id": "B2",
+      "name": "Безударные гласные и длинные слова",
+      "description": "Трёхсложные слова. Тренировка чтения безударных гласных и удержания внимания на всём слове.",
+      "provider": "combinatorial",
+      "word_pool": ["бабочка", "собака", "малина", "коробка", "телефон", "апельсин", "велосипед", "карандаш", "пирожок", "снеговик", "баранка", "баночка", "башмак", "сапог", "сова", "сорока", "мантия", "мандарин", "машина", "жук", "коробок", "корочка", "телега", "телёнок", "телескоп", "ананас", "персик", "абрикос", "волан", "велюр", "педаль", "карман", "карусель", "картошка", "пирог", "пирожное", "пират", "снежинка", "снег", "снежок"],
+      "lessons": [
+        { "id": "B2-L01", "config": { "target_word": "БАБОЧКА", "distractor_pool": ["баранка", "баночка", "башмак"], "distractor_count": 3 }, "meta": { "pedagogical_goal": "Чтение безударных А, контроль суффикса -ОЧК", "trap_logic": "Б→Р/Н/Ш", "parent_note": "«Бабочка порхает над цветами, а баранку едят на завтрак»", "theme": "Насекомые и еда", "difficulty": 7 } },
+        { "id": "B2-L02", "config": { "target_word": "СОБАКА", "distractor_pool": ["сапог", "сова", "сорока"], "distractor_count": 3 }, "meta": { "pedagogical_goal": "Безударные О/А, контроль парных согласных", "trap_logic": "О→А/О, Б→П", "parent_note": "«Собака лает, а сапог надевают на ногу»", "theme": "Животные и одежда", "difficulty": 7 } },
+        { "id": "B2-L03", "config": { "target_word": "МАЛИНА", "distractor_pool": ["мантия", "мандарин", "машина"], "distractor_count": 3 }, "meta": { "pedagogical_goal": "Безударная А, различение Л/Н/НД/Ш", "trap_logic": "Л→Н/НД/Ш", "parent_note": "«Малина растёт на кустах, а мандарин — цитрусовый фрукт»", "theme": "Ягоды и фрукты", "difficulty": 7 } },
+        { "id": "B2-L04", "config": { "target_word": "КОРОБКА", "distractor_pool": ["жук", "коробок", "корочка"], "distractor_count": 3 }, "meta": { "pedagogical_goal": "Звонкие/глухие в суффиксе, контроль окончания", "trap_logic": "Б→Ж/К/Ч", "parent_note": "«Коробка картонная, а жук — маленькое насекомое»", "theme": "Предметы и насекомые", "difficulty": 7 } },
+        { "id": "B2-L05", "config": { "target_word": "ТЕЛЕФОН", "distractor_pool": ["телега", "телёнок", "телескоп"], "distractor_count": 3 }, "meta": { "pedagogical_goal": "Чтение длинного слова, контроль Ф/Г/Л", "trap_logic": "Ф→Г/Л/С", "parent_note": "«Телефоном звонят, а на телеге возят сено»", "theme": "Техника и транспорт", "difficulty": 7 } },
+        { "id": "B2-L06", "provider": "pool", "config": { "target_word": "АПЕЛЬСИН", "distractor_count": 3 }, "meta": { "pedagogical_goal": "Безударные Е/И, контроль длинного корня", "trap_logic": "А→П/А", "parent_note": "«Апельсин оранжевый и круглый, а ананас — колючий»", "theme": "Фрукты", "difficulty": 8 } },
+        { "id": "B2-L07", "provider": "pool", "config": { "target_word": "ВЕЛОСИПЕД", "distractor_count": 3 }, "meta": { "pedagogical_goal": "Чтение 3-сложного слова, контроль Л/С/П", "trap_logic": "О→О/Е", "parent_note": "«Велосипед крутят педалями, а волан бьют ракеткой»", "theme": "Транспорт и спорт", "difficulty": 8 } },
+        { "id": "B2-L08", "config": { "target_word": "КАРАНДАШ", "distractor_pool": ["карман", "карусель", "картошка"], "distractor_count": 3 }, "meta": { "pedagogical_goal": "Безударные А/А, контроль окончания -АШ", "trap_logic": "Д→Т/Н/М", "parent_note": "«Карандашом рисуют, а в кармане носят мелочи»", "theme": "Канцелярия и одежда", "difficulty": 8 } },
+        { "id": "B2-L09", "config": { "target_word": "ПИРОЖОК", "distractor_pool": ["пирог", "пирожное", "пират"], "distractor_count": 3 }, "meta": { "pedagogical_goal": "Различение уменьшительных форм, контроль Ж/Г", "trap_logic": "Ж→Г/Н/Т", "parent_note": "«Пирожок держат в руке, а пират ходит по кораблю»", "theme": "Еда и сказки", "difficulty": 8 } },
+        { "id": "B2-L10", "config": { "target_word": "СНЕГОВИК", "distractor_pool": ["снежинка", "снег", "снежок"], "distractor_count": 3 }, "meta": { "pedagogical_goal": "Закрепление длинных слов, контроль Г/Ш/Н", "trap_logic": "Г→Ш/Ж/Н", "parent_note": "«Снеговик лепят из трёх комков, а снежинка падает с неба»", "theme": "Зима и явления", "difficulty": 8 } }
+      ]
+    },
+    {
+      "id": "B3",
+      "name": "Мастер чтения",
+      "description": "Финальное закрепление. Слова с 3+ слогами, сложные кластеры, проверка внимания и склейки.",
+      "provider": "combinatorial",
+      "word_pool": ["автобус", "доска", "пуговица", "светофор", "экскаватор", "прогулка", "перец", "чернила", "скакалка", "помощник", "автомат", "авоська", "автопилот", "доски", "доспехи", "дождь", "плюшка", "вилка", "луковица", "светлячок", "светильник", "свеча", "эскимо", "эскалатор", "экран", "прут", "пружина", "пруд", "перчик", "перо", "персик", "черника", "череп", "черепаха", "скала", "скачка", "скалолаз", "помощница", "помидор", "повар"],
+      "lessons": [
+        { "id": "B3-L01", "config": { "target_word": "АВТОБУС", "distractor_pool": ["автомат", "авоська", "автопилот"], "distractor_count": 3 }, "meta": { "pedagogical_goal": "Чтение сложных стечений АВТ, контроль -БУС", "trap_logic": "Т→Т/С/П", "parent_note": "«Автобус возит людей, а автомат стреляет в тире»", "theme": "Транспорт", "difficulty": 9 } },
+        { "id": "B3-L02", "config": { "target_word": "ДОСКА", "distractor_pool": ["доски", "доспехи", "дождь"], "distractor_count": 3 }, "meta": { "pedagogical_goal": "Различение ед./мн. числа и фонетически близких корней", "trap_logic": "К→С/П/Ж", "parent_note": "«Доска деревянная, а доспехи защищали рыцарей»", "theme": "Предметы и история", "difficulty": 9 } },
+        { "id": "B3-L03", "config": { "target_word": "ПУГОВИЦА", "distractor_pool": ["плюшка", "вилка", "луковица"], "distractor_count": 3 }, "meta": { "pedagogical_goal": "Чтение безударных О/И/А, контроль суффикса", "trap_logic": "Г→Л/В/К", "parent_note": "«Пуговицей застёгивают куртку, а луковица растёт в земле»", "theme": "Одежда и еда", "difficulty": 9 } },
+        { "id": "B3-L04", "config": { "target_word": "СВЕТОФОР", "distractor_pool": ["светлячок", "светильник", "свеча"], "distractor_count": 3 }, "meta": { "pedagogical_goal": "Чтение сложного корня СВЕТО-, контроль Ф/Р/Ч", "trap_logic": "Ф→Р/И/Ч", "parent_note": "«Светофор регулирует машины, а свеча горит на столе»", "theme": "Город и свет", "difficulty": 9 } },
+        { "id": "B3-L05", "config": { "target_word": "ЭКСКАВАТОР", "distractor_pool": ["эскимо", "эскалатор", "экран"], "distractor_count": 3 }, "meta": { "pedagogical_goal": "Чтение редких стечений ЭКС, контроль окончания -ТОР", "trap_logic": "К→С/К/К", "parent_note": "«Экскаватор копает землю, а эскимо едят летом»", "theme": "Техника и сладости", "difficulty": 9 } },
+        { "id": "B3-L06", "provider": "pool", "config": { "target_word": "ПРОГУЛКА", "distractor_count": 3 }, "meta": { "pedagogical_goal": "Безударные О/У, контроль суффикса -К", "trap_logic": "Г→Т/Ж/Д", "parent_note": "«Прогулка — это ходьба на свежем воздухе, а пруд — маленькое озеро»", "theme": "Активность и природа", "difficulty": 9 } },
+        { "id": "B3-L07", "config": { "target_word": "ПЕРЕЦ", "distractor_pool": ["перчик", "перо", "персик"], "distractor_count": 3 }, "meta": { "pedagogical_goal": "Различение Е/И/Е/Е, контроль Ц/Ч/Р/С", "trap_logic": "Ц→Ч/Р/С", "parent_note": "«Перец острый или болгарский, а перо лёгкое и пушистое»", "theme": "Овощи и фрукты", "difficulty": 9 } },
+        { "id": "B3-L08", "config": { "target_word": "ЧЕРНИЛА", "distractor_pool": ["черника", "череп", "черепаха"], "distractor_count": 3 }, "meta": { "pedagogical_goal": "Чтение ЧЕР-, контроль Н/Н/Р/Р", "trap_logic": "Н→Н/Р/Р", "parent_note": "«Чернилами пишут в ручке, а черепаха медленно ползает»", "theme": "Канцелярия и животные", "difficulty": 9 } },
+        { "id": "B3-L09", "provider": "combinatorial", "config": { "distractor_count": 3 }, "meta": { "pedagogical_goal": "Чтение повторяющихся согласных К-К, контроль суффикса", "trap_logic": "К→К/К/К", "parent_note": "«Скакалкой прыгают, а скалолаз залезает на стену»", "theme": "Спорт и природа", "difficulty": 9 } },
+        { "id": "B3-L10", "config": { "target_word": "ПОМОЩНИК", "distractor_pool": ["помощница", "помидор", "повар"], "distractor_count": 3 }, "meta": { "pedagogical_goal": "Финальное закрепление: контроль Щ/Н/К, безударных О/И", "trap_logic": "О→О/О/О", "parent_note": "«Помощник помогает, а повар готовит еду. Ты отлично справился!»", "theme": "Профессии", "difficulty": 9 } }
+      ]
+    }
+  ]
+}
