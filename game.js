@@ -107,6 +107,32 @@ const SVG_FALLBACK = 'data:image/svg+xml,' +
   '</svg>');
 
 // ==========================================
+// 🔊 ЗВУКИ
+// ==========================================
+const sounds = {
+  click: null,    // клик по кнопке "Дальше" / "Попробовать ещё раз"
+  success: null,  // правильный ответ
+  wrong: null,    // неправильный ответ
+  gameover: null  // Game Over / победа (финальный экран)
+};
+
+function initSounds() {
+  sounds.click = new Audio('tick_004.ogg');
+  sounds.success = new Audio('pluck_002.ogg');
+  sounds.wrong = new Audio('scratch_005.ogg');
+  sounds.gameover = new Audio('error_008.ogg');
+  Object.values(sounds).forEach(s => { if (s) s.load(); });
+}
+
+function playSound(name) {
+  const s = sounds[name];
+  if (s) {
+    s.currentTime = 0;
+    s.play().catch(() => {});
+  }
+}
+
+// ==========================================
 // ⚙️ CONFIG & STATE
 // ==========================================
 const CONFIG = {
@@ -171,6 +197,7 @@ function calculateAvgReaction(reactionTime) {
 // 🎮 CORE LOGIC
 // ==========================================
 async function init() {
+  initSounds();
   loadProgress();
 
   // Поддержка кастомного конфига через URL: ?curriculum=stress-test.json
@@ -391,6 +418,22 @@ function handleAnswer(selectedIdx, correctIndex, meta) {
   cards[selectedIdx].classList.add(isCorrect ? 'correct' : 'wrong');
   if (!isCorrect) cards[correctIndex].classList.add('correct');
 
+  // Звуки
+  if (isCorrect) playSound('success');
+  else playSound('wrong');
+
+  // При последней жизни — сразу Game Over, без feedback overlay
+  if (!isCorrect && state.lives <= 1) {
+    state.lives = 0;
+    state.metrics.errors++;
+    state.metrics.streak = 0;
+    updateUI();
+    saveProgress();
+    playSound('gameover');
+    setTimeout(() => showEndScreen(false), 800);
+    return;
+  }
+
   els.feedbackIcon.textContent = isCorrect ? '🎉' : '❌';
   els.feedbackText.textContent = isCorrect ? 'Правильно!' : 'Не совсем, смотри:';
   els.feedbackOverlay.classList.remove('hidden');
@@ -408,10 +451,6 @@ function handleAnswer(selectedIdx, correctIndex, meta) {
     state.metrics.streak = 0;
     updateUI();
     saveProgress();
-    if (state.lives <= 0) {
-      showEndScreen(false);
-      return;
-    }
   } else {
     state.metrics.streak++;
   }
@@ -420,6 +459,7 @@ function handleAnswer(selectedIdx, correctIndex, meta) {
 }
 
 function nextLesson() {
+  playSound('click');
   state.currentRuntime = null;
   state.lessonIdx++;
 
@@ -452,6 +492,7 @@ function showEndScreen(isWin) {
     els.endMessage.textContent = 'Ты отлично читаешь! Продолжай в том же духе.';
     els.restartBtn.textContent = 'Начать заново';
     els.restartBtn.onclick = () => {
+      playSound('click');
       localStorage.removeItem(CONFIG.storageKey);
       location.reload();
     };
@@ -459,6 +500,7 @@ function showEndScreen(isWin) {
     els.endMessage.textContent = `Не расстраивайся! Начнём секцию «${stageName}» заново с полными жизнями.`;
     els.restartBtn.textContent = 'Попробовать ещё раз';
     els.restartBtn.onclick = () => {
+      playSound('click');
       // 🔁 Детерминированный retry: тот же урок, 3 жизни
       state.lives = 3;
       saveProgress();
