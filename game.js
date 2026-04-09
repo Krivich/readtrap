@@ -222,8 +222,14 @@ async function init() {
     alert(`Не удалось загрузить ${customConfig}\nПроверьте что файл лежит рядом с index.html`);
   }
 
-  els.nextBtn.addEventListener('click', nextLesson);
-  els.resetBtn.addEventListener('click', resetProgress);
+  els.nextBtn.addEventListener('click', () => {
+    playSound('click');
+    nextLesson();
+  });
+  els.resetBtn.addEventListener('click', () => {
+    playSound('click');
+    resetProgress();
+  });
 }
 
 /**
@@ -461,7 +467,6 @@ function handleAnswer(selectedIdx, correctIndex, meta) {
 }
 
 function nextLesson() {
-  playSound('click');
   state.currentRuntime = null;
   state.lessonIdx++;
 
@@ -495,7 +500,6 @@ function showEndScreen(isWin) {
     els.endMessage.textContent = 'Ты отлично читаешь! Продолжай в том же духе.';
     els.restartBtn.textContent = 'Начать заново';
     els.restartBtn.onclick = () => {
-      playSound('click');
       localStorage.removeItem(CONFIG.storageKey);
       location.reload();
     };
@@ -503,7 +507,6 @@ function showEndScreen(isWin) {
     els.endMessage.textContent = `Не расстраивайся! Начнём секцию «${stageName}» заново с полными жизнями.`;
     els.restartBtn.textContent = 'Попробовать ещё раз';
     els.restartBtn.onclick = () => {
-      playSound('click');
       // 🔁 Откат до начала секции + восстановление жизней
       state.lessonIdx = 0;
       state.lives = 3;
