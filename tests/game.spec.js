@@ -163,6 +163,7 @@ test.describe('Стресс-конфиг', () => {
     await page.goto('/?curriculum=stress-test.json');
     await page.waitForTimeout(2000);
     
+    // В stress-test.json урок 5 = КО-Т с asset_map
     // Проходим 4 урока Stage 1, добираемся до L05 (КО-Т)
     for (let i = 0; i < 4; i++) {
       const word = (await page.locator('#target-word').textContent())?.toUpperCase();
@@ -185,7 +186,7 @@ test.describe('Стресс-конфиг', () => {
     const word = await page.locator('#target-word').textContent();
     expect(word).toBe('КО-Т');
     
-    // Находим карточку с alt="кот" (из asset_map)
+    // Находим карточку с alt="кот" (из asset_map КО-Т → кот)
     const cards = page.locator('.image-card');
     let foundKot = false;
     for (let j = 0; j < 4; j++) {

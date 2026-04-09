@@ -253,8 +253,11 @@ function enterStage() {
 
 /**
  * Выбор провайдера — всегда явный из урока или stage
+ * Если урок имеет runtime.image_words → static (обратная совместимость)
  */
 function selectProvider(stage, lessonConfig) {
+  // Явный runtime = статический урок
+  if (lessonConfig?.runtime?.image_words?.length) return PROVIDERS.static;
   const name = lessonConfig?.provider || stage?.provider || 'static';
   return PROVIDERS[name] || PROVIDERS.static;
 }
