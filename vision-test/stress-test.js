@@ -22,7 +22,7 @@ if (!fs.existsSync(SCREENSHOTS_DIR)) {
 }
 
 const customConfig = process.argv[2] || 'curriculum.json';
-const PORT = 3472;
+const PORT = 8081;
 
 console.log(`🧪 Стресс-тест: ${customConfig}`);
 console.log(` Скриншоты → ${SCREENSHOTS_DIR}`);
