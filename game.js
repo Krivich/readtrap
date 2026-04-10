@@ -203,22 +203,41 @@ function calculateAvgReaction(reactionTime) {
 // ==========================================
 // 🎮 CORE LOGIC
 // ==========================================
+
+const startScreen = document.getElementById('start-screen');
+const gameContainer = document.getElementById('game-container');
+const btnEasy = document.getElementById('btn-easy');
+const btnNormal = document.getElementById('btn-normal');
+
 async function init() {
   initSounds();
+
+  // Обработчики кнопок выбора уровня
+  btnEasy.addEventListener('click', () => startGame('curriculum-simple.json'));
+  btnNormal.addEventListener('click', () => startGame('curriculum.json'));
+
+  // Если конфиг указан в URL — сразу запускаем игру
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('curriculum')) {
+    startGame(params.get('curriculum'));
+  }
+}
+
+async function startGame(configPath) {
+  startScreen.classList.add('hidden');
+  gameContainer.classList.remove('hidden');
+  document.getElementById('game-screen').classList.remove('hidden');
+
   loadProgress();
 
-  // Поддержка кастомного конфига через URL: ?curriculum=stress-test.json
-  const params = new URLSearchParams(window.location.search);
-  const customConfig = params.get('curriculum') || CONFIG.curriculumPath;
-
   try {
-    const res = await fetch(customConfig);
-    if (!res.ok) throw new Error(`HTTP ${res.status} — ${customConfig}`);
+    const res = await fetch(configPath);
+    if (!res.ok) throw new Error(`HTTP ${res.status} — ${configPath}`);
     state.curriculum = await res.json();
     if (!state.curriculum.stages || !state.curriculum.stages.length) {
-      throw new Error('Нет stages в ' + customConfig);
+      throw new Error('Нет stages в ' + configPath);
     }
-    console.log(`📚 Загружен конфиг: ${customConfig} (${state.curriculum.stages.length} стадий)`);
+    console.log(`📚 Загружен конфиг: ${configPath} (${state.curriculum.stages.length} стадий)`);
     enterStage();
     startLesson(false);
   } catch (err) {

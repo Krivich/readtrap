@@ -184,4 +184,26 @@ main {
   border-radius: 20px; font-size: 16px; cursor: pointer;
 }
 
+/* Стартовый экран */
+#start-screen {
+  align-items: center;
+  justify-content: center;
+}
+.start-content { text-align: center; max-width: 320px; }
+.start-title { font-size: clamp(28px, 8vw, 40px); font-weight: 800; color: var(--primary); margin-bottom: 8px; }
+.start-subtitle { color: var(--text-light); font-size: 18px; margin-bottom: 32px; }
+.level-buttons { display: flex; flex-direction: column; gap: 16px; }
+.level-btn {
+  background: var(--card-bg); border: 3px solid transparent; border-radius: var(--radius);
+  box-shadow: var(--shadow); padding: 20px; cursor: pointer; transition: transform 0.2s, border-color 0.2s;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+}
+.level-btn:hover { transform: scale(1.03); border-color: var(--primary); }
+.level-btn:active { transform: scale(0.97); }
+.level-easy:hover { border-color: #22c55e; }
+.level-normal:hover { border-color: #3b82f6; }
+.level-emoji { font-size: 48px; line-height: 1; }
+.level-label { font-size: 22px; font-weight: 700; color: var(--text); }
+.level-desc { font-size: 14px; color: var(--text-light); }
+
 .hidden { display: none !important; }

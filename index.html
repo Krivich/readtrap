@@ -7,7 +7,28 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="app-container">
+  <!-- Экран выбора уровня -->
+  <div class="app-container" id="start-screen">
+    <div class="start-content">
+      <h1 class="start-title">Читаем вместе 👋</h1>
+      <p class="start-subtitle">Выбери уровень сложности</p>
+      <div class="level-buttons">
+        <button class="level-btn level-easy" id="btn-easy">
+          <span class="level-emoji">👶</span>
+          <span class="level-label">Простой</span>
+          <span class="level-desc">Слова по 3 буквы</span>
+        </button>
+        <button class="level-btn level-normal" id="btn-normal">
+          <span class="level-emoji">🧒</span>
+          <span class="level-label">Нормальный</span>
+          <span class="level-desc">Все 50 уроков</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Экран игры -->
+  <div class="app-container hidden" id="game-container">
     <header>
       <div class="level-badge">
         <span>Уровень</span>
@@ -17,7 +38,7 @@
       <button class="icon-btn" id="reset-btn" title="Начать заново">🔄</button>
     </header>
 
-    <main id="game-screen">
+    <main id="game-screen" class="hidden">
       <div class="target-container">
         <h1 id="target-word" class="target-word">Загрузка...</h1>
         <p class="instruction">Найди правильную картинку</p>
