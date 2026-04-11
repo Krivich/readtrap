@@ -197,7 +197,23 @@ class ScientificProvider extends BaseProvider {
 
   async generateStages(lessonsPerStage = 10) {
     await this.loadManifest();
-    if (!this.wordPool.length) return [];
+    if (!this.wordPool.length) {
+      console.warn('⚠️ Manifest empty, using fallback Russian words');
+      // Fallback: используем слова из старого curriculum если манифест недоступен
+      this.wordPool = [
+        { word: 'кот', folder: 'styles/new' }, { word: 'дом', folder: 'styles/new' },
+        { word: 'мак', folder: 'styles/new' }, { word: 'сок', folder: 'styles/new' },
+        { word: 'лес', folder: 'styles/new' }, { word: 'жук', folder: 'styles/new' },
+        { word: 'рот', folder: 'styles/new' }, { word: 'мяч', folder: 'styles/new' },
+        { word: 'гриб', folder: 'styles/new' }, { word: 'стул', folder: 'styles/new' },
+        { word: 'кит', folder: 'styles/new' }, { word: 'рак', folder: 'styles/new' },
+        { word: 'лак', folder: 'styles/new' }, { word: 'бак', folder: 'styles/new' },
+        { word: 'суп', folder: 'styles/new' }, { word: 'сук', folder: 'styles/new' },
+        { word: 'сыр', folder: 'styles/new' }, { word: 'лев', folder: 'styles/new' },
+        { word: 'лис', folder: 'styles/new' }, { word: 'лук', folder: 'styles/new' }
+      ];
+      this.wordGroups = { 'styles/new': this.wordPool };
+    }
 
     // Группируем по папкам, затем фильтруем по языку
     const langGroups = {};
@@ -442,22 +458,25 @@ async function startScientific() {
   loadProgress();
 
   try {
+    console.log('🔬 Starting scientific provider...');
     const provider = PROVIDERS.scientific;
     const stages = await provider.generateStages(10);
+    console.log(`🔬 Generated ${stages.length} stages`);
+    if (!stages.length) throw new Error('Нет стадий');
+
     state.curriculum = {
       meta: { project: 'ninachit-scientific', version: '3.0.0' },
       default_provider: 'scientific',
       asset_map: {},
       stages
     };
-    if (!state.curriculum.stages.length) throw new Error('Нет стадий');
-    console.log(`🔬 Научный курс: ${stages.length} стадий, ${stages.reduce((s, st) => s + st.lessons.length, 0)} уроков`);
+    console.log(`🔬 Научный курс: ${stages.reduce((s, st) => s + st.lessons.length, 0)} уроков`);
     enterStage();
     startLesson(false);
   } catch (e) {
-    console.error('❌ Scientific init error:', e.name, e.message);
+    console.error('❌ Scientific init error:', e.name, e.message, e.stack);
     els.targetWord.textContent = `❌ ${e.message}`;
-    alert(`Научный уровень:\n${e.message}\n\nПроверьте интернет и CORS.`);
+    alert(`Научный уровень:\n${e.message}\n\nПроверьте консоль для деталей.`);
   }
 }
 
