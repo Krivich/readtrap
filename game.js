@@ -719,31 +719,30 @@ function handleAnswer(selectedIdx, correctIndex, meta) {
 }
 
 function nextLesson() {
-  console.log('👆 Next button clicked');
   try {
     state.currentRuntime = null;
     state.lessonIdx++;
 
-  const stage = state.curriculum.stages[state.stageIdx];
-  const lessons = stage?.lessons || [];
-  const isDynamicStage = stage?.provider && !stage?.lessons?.length; // Динамическая = провайдер есть + уроков нет
+    const stage = state.curriculum.stages[state.stageIdx];
+    const lessons = stage?.lessons || [];
+    const isDynamicStage = stage?.provider && !stage?.lessons?.length;
 
-  // Переход к следующей стадии: только для статических, где уроки закончились
-  if (!isDynamicStage && state.lessonIdx >= lessons.length) {
-    state.lessonIdx = 0;
-    state.stageIdx++;
-    if (state.stageIdx >= state.curriculum.stages.length) {
-      showEndScreen(true);
-      return;
+    if (!isDynamicStage && state.lessonIdx >= lessons.length) {
+      state.lessonIdx = 0;
+      state.stageIdx++;
+      if (state.stageIdx >= state.curriculum.stages.length) {
+        showEndScreen(true);
+        return;
+      }
+      enterStage();
     }
-    enterStage();
-  }
 
-  saveProgress();
-  els.feedbackOverlay.classList.add('hidden');
-  startLesson(false);
+    saveProgress();
+    els.feedbackOverlay.classList.add('hidden');
+    startLesson(false);
   } catch (e) {
     console.error('Next lesson error:', e);
+    alert(`Ошибка перехода:\n${e.message}\n\nОткрой консоль (F12) для деталей.`);
   }
 }
 
