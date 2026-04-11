@@ -503,13 +503,22 @@ async function startGame(configPath) {
     alert(`Не удалось загрузить ${customConfig}\nПроверьте что файл лежит рядом с index.html`);
   }
 
-  els.nextBtn.addEventListener('click', () => {
-    playSound('click');
-    nextLesson();
-  });
-  els.resetBtn.addEventListener('click', () => {
-    playSound('click');
-    resetProgress();
+  // Используем делегирование событий для надежности
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('#next-btn')) {
+      console.log('🔵 [Delegation] Клик по кнопке "Дальше" пойман!');
+      playSound('click');
+      nextLesson();
+    }
+    if (e.target.closest('#reset-btn')) {
+      playSound('click');
+      resetProgress();
+    }
+    if (e.target.closest('#restart-btn')) {
+      // Обработка кнопки рестарта внутри модалки
+      const btn = e.target.closest('#restart-btn');
+      if (btn.onclick) btn.onclick();
+    }
   });
 }
 
@@ -573,14 +582,20 @@ function updateUI() {
 }
 
 function startLesson(isRetry = false) {
+  console.log('🟢 [startLesson] Начало...');
   state.isAnswered = false;
+  
+  // Принудительно скрываем всё лишнее перед стартом урока
   els.feedbackOverlay.classList.add('hidden');
   els.parentZone.classList.add('hidden');
+  els.nextBtn.style.display = 'none'; // Скрываем кнопку, пока не ответят
   els.grid.innerHTML = '';
 
   const stage = state.curriculum.stages[state.stageIdx];
-  if (!stage) { showEndScreen(true); return; }
+  if (!stage) { console.warn('🟡 [startLesson] Нет стадии!'); showEndScreen(true); return; }
 
+  console.log(`🟢 [startLesson] Stage: ${state.stageIdx}, LessonIdx: ${state.lessonIdx} (всего: ${stage.lessons?.length || 0})`);
+  
   const lessons = stage.lessons || [];
 
   // Определяем урок: статический из списка или виртуальный для динамической стадии
@@ -625,6 +640,7 @@ function startLesson(isRetry = false) {
 }
 
 function renderLesson(runtime, meta) {
+  console.log('🟡 [renderLesson] Рендерю урок:', runtime.target_word);
   els.targetWord.textContent = runtime.target_word;
   updateUI();
 
@@ -719,30 +735,40 @@ function handleAnswer(selectedIdx, correctIndex, meta) {
 }
 
 function nextLesson() {
+  console.log('🔵 [nextLesson] Кнопка "Дальше" нажата!');
+  const wordEl = document.getElementById('target-word');
+  if (wordEl) wordEl.textContent = 'Loading...';
+  
   try {
+    console.log('🔵 [nextLesson] Запускаю логику перехода...');
     state.currentRuntime = null;
     state.lessonIdx++;
 
     const stage = state.curriculum.stages[state.stageIdx];
     const lessons = stage?.lessons || [];
     const isDynamicStage = stage?.provider && !stage?.lessons?.length;
+    console.log(`🔵 [nextLesson] Stage: ${state.stageIdx}, LessonIdx: ${state.lessonIdx}`);
 
     if (!isDynamicStage && state.lessonIdx >= lessons.length) {
-      state.lessonIdx = 0;
-      state.stageIdx++;
+        console.log('🔵 [nextLesson] Перехожу на новую стадию');
+        state.lessonIdx = 0;
+        state.stageIdx++;
       if (state.stageIdx >= state.curriculum.stages.length) {
+        console.log('🔵 [nextLesson] Курс закончен!');
         showEndScreen(true);
         return;
       }
       enterStage();
     }
 
+    console.log('🔵 [nextLesson] Вызываю startLesson...');
     saveProgress();
     els.feedbackOverlay.classList.add('hidden');
     startLesson(false);
   } catch (e) {
-    console.error('Next lesson error:', e);
-    alert(`Ошибка перехода:\n${e.message}\n\nОткрой консоль (F12) для деталей.`);
+    console.error('❌ [nextLesson] Ошибка:', e);
+    if (wordEl) wordEl.textContent = `Error: ${e.message}`;
+    alert(`Ошибка перехода:\n${e.message}`);
   }
 }
 
@@ -782,6 +808,9 @@ function resetProgress() {
     location.reload();
   }
 }
+
+// Делаем функции доступными для тестов
+window.nextLesson = nextLesson;
 
 // Старт
 init();

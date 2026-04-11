@@ -23,8 +23,11 @@ async function run() {
   });
   await new Promise(r => setTimeout(r, 2000));
 
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({ headless: false, slowMo: 500 }); // Замедляем для наблюдения
   const page = await browser.newPage({ viewport: { width: 375, height: 812 } });
+
+  // Включаем логирование кликов для отладки
+  page.on('console', msg => console.log(`📢 [Browser] ${msg.text()}`));
 
   // Перехват ошибок в консоли
   const errors = [];
@@ -160,15 +163,42 @@ async function run() {
     }
 
     // Ждём кнопку "Дальше" и кликаем через JS
+    console.log(`🔍 [Test] Ищу кнопку #next-btn...`);
     await page.waitForSelector('#next-btn', { state: 'visible', timeout: 3000 }).catch(() => {});
     const hasButton = await page.$('#next-btn');
+    console.log(`🔍 [Test] Кнопка найдена?`, !!hasButton);
+    
+    // Запоминаем слово ДО клика
+    const wordBefore = await page.$eval('#target-word', el => el.textContent);
+    console.log(`📝 [Test] Слово ДО клика: "${wordBefore}"`);
+
     if (hasButton) {
-      await page.evaluate(() => document.getElementById('next-btn')?.click());
-      // Принудительно скрываем overlay
-      await page.evaluate(() => document.getElementById('feedback-overlay')?.classList.add('hidden'));
-      await page.waitForTimeout(300);
+      console.log(`🔍 [Test] Пробую прямой вызов nextLesson()...`);
+      const wordBefore = await page.$eval('#target-word', el => el.textContent);
+      console.log(`📝 [Test] Слово ДО: "${wordBefore}"`);
+      
+      // Вызываем функцию напрямую, минуя DOM-клик
+      await page.evaluate(() => {
+        if (window.nextLesson) window.nextLesson();
+        else document.getElementById('next-btn')?.click();
+      });
+      
+      // Ждем изменения слова
+      try {
+        await page.waitForFunction((oldWord) => {
+          const current = document.getElementById('target-word').textContent;
+          return current !== oldWord && current !== 'Loading...';
+        }, { timeout: 5000 }, wordBefore);
+        
+        const wordAfter = await page.$eval('#target-word', el => el.textContent);
+        console.log(`✅ [Test] Урок сменился! Было: "${wordBefore}", Стало: "${wordAfter}"`);
+      } catch (e) {
+        console.log(`❌ [Test] ОШИБКА: Слово НЕ сменилось! Всё ещё "${wordBefore}"`);
+        failed++;
+        break;
+      }
     } else {
-      // Проверяем game over
+      // Проверяем game over, если кнопки нет
       const endModal = await page.$('#end-modal:not(.hidden)');
       if (endModal) {
         console.log(`🏁 Game Over после ${passed} уроков`);

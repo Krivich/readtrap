@@ -161,6 +161,9 @@ main {
   box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
   transition: transform 0.2s;
   min-width: 180px;
+  z-index: 1000; /* Кнопка всегда поверх всего */
+  position: relative;
+  pointer-events: auto; /* Гарантируем кликабельность */
 }
 .next-btn:hover { transform: translateY(-2px); }
 .next-btn:active { transform: translateY(0); }
