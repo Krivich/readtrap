@@ -283,7 +283,7 @@ const sounds = {
 };
 
 function initSounds() {
-  sounds.click = new Audio('sounds/click_001.ogg');
+  sounds.click = new Audio('sounds/click_004.ogg');
   sounds.success = new Audio('sounds/pluck_002.ogg');
   sounds.wrong = new Audio('sounds/scratch_005.ogg');
   sounds.win = new Audio('sounds/maximize_005.ogg');
