@@ -111,7 +111,7 @@ class ScientificProvider extends BaseProvider {
     this.stageWords = { A1: [], A2: [], B1: [], B2: [] };
     this.usage = new Map();
     this.manifestUrl = 'https://krivich.github.io/open-word-images/manifest.json';
-    this.targetLang = 'en'; // 'en' = без кириллицы, 'ru' = с кириллицей
+    this.targetLang = 'ru'; // 'ru' = с кириллицей (styles/new), 'en' = латиница (styles/eng)
   }
 
   async loadManifest() {
