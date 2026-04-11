@@ -195,15 +195,15 @@ class ScientificProvider extends BaseProvider {
           id: `${stageId}-L${String(i + 1).padStart(2, '0')}`,
           config: {
             target_word: target.word.toUpperCase(),
-            distractor_pool: distractors.map(d => d.word),
+            distractor_pool: distractors,
             distractor_count: 3
           },
           meta: {
             pedagogical_goal: `Чтение "${target.word}" (${stageId})`,
             difficulty: { A1: 1, A2: 3, B1: 5, B2: 7 }[stageId],
             theme: 'Scientific',
-            trap_logic: `Замена: ${target.word[0]}→${distractors.map(d => d.word[0]).join(',')}`,
-            parent_note: `«${target.word} — это ${this.getHint(target.word)}, а ${distractors[0]?.word} — другое»`
+            trap_logic: `Замена: ${target.word[0]}→${distractors.map(w => w[0]).join(',')}`,
+            parent_note: `«${target.word} — это ${this.getHint(target.word)}, а ${distractors[0]} — другое»`
           }
         });
       }
@@ -643,8 +643,10 @@ function handleAnswer(selectedIdx, correctIndex, meta) {
 }
 
 function nextLesson() {
-  state.currentRuntime = null;
-  state.lessonIdx++;
+  console.log('👆 Next button clicked');
+  try {
+    state.currentRuntime = null;
+    state.lessonIdx++;
 
   const stage = state.curriculum.stages[state.stageIdx];
   const lessons = stage?.lessons || [];
@@ -664,6 +666,9 @@ function nextLesson() {
   saveProgress();
   els.feedbackOverlay.classList.add('hidden');
   startLesson(false);
+  } catch (e) {
+    console.error('Next lesson error:', e);
+  }
 }
 
 function showEndScreen(isWin) {
