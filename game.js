@@ -13,10 +13,6 @@ class BaseProvider {
   }
 }
 
-/**
- * Статический провайдер — 1:1 совместимость со старым curriculum.json
- * Читает lesson.config.image_words и config.correct_image_index
- */
 class StaticProvider extends BaseProvider {
   generate(ctx) {
     const c = ctx.config;
@@ -27,7 +23,6 @@ class StaticProvider extends BaseProvider {
     } else if (c.distractors && c.distractors.length) {
       imageWords = [target.toLowerCase(), ...c.distractors];
     } else if (c.distractor_pool && c.distractor_pool.length) {
-      // Fallback: берём случайные дистракторы из пула
       const pool = c.distractor_pool.filter(w => w.toLowerCase() !== target.toLowerCase());
       const count = c.distractor_count || 3;
       const shuffled = this._shuffle([...pool]);
@@ -43,10 +38,6 @@ class StaticProvider extends BaseProvider {
   }
 }
 
-/**
- * Pool-провайдер — берёт target_word, дистракторы из пула
- * Каждый раз новые дистракторы — ребёнок не запоминает набор
- */
 class PoolProvider extends BaseProvider {
   generate(ctx) {
     if (ctx.isRetry && ctx.cachedRuntime) return ctx.cachedRuntime;
@@ -64,21 +55,15 @@ class PoolProvider extends BaseProvider {
   }
 }
 
-/**
- * Комбинаторный провайдер — максимальный КПД ассетов
- * Отслеживает usage слов, выбирает наименее использованное
- */
 class CombinatorialProvider extends BaseProvider {
   constructor() { super(); this.usage = new Map(); }
 
   generate(ctx) {
     if (ctx.isRetry && ctx.cachedRuntime) return ctx.cachedRuntime;
     const c = ctx.config;
-    // word_pool: локальный (урок) → stage → fallback
     const pool = c.word_pool || [];
     if (!pool.length) return { target_word: 'НЕТ ДАННЫХ', image_words: ['кот','кит','рот','сом'], correct_image_index: 0 };
 
-    // Выбираем слово с наименьшим usage
     let target = pool[0];
     let minUsage = Infinity;
     for (const word of pool) {
@@ -101,13 +86,12 @@ class CombinatorialProvider extends BaseProvider {
 
 /**
  * 🔬 ScientificProvider — генерирует курс «с нуля» из манифеста open-word-images
- * Загружает manifest.json, фильтрует слова по языку (en/ru),
- * категоризирует по фонетической сложности, генерирует 40-50 уроков.
  */
 class ScientificProvider extends BaseProvider {
   constructor() {
     super();
     this.wordPool = null;
+    this.wordGroups = {};
     this.stageWords = { A1: [], A2: [], B1: [], B2: [] };
     this.usage = new Map();
     this.manifestUrl = 'https://krivich.github.io/open-word-images/manifest.json';
@@ -130,14 +114,12 @@ class ScientificProvider extends BaseProvider {
         const word = entry.word || entry.key || '';
         const path = entry.path || '';
         if (typeof word !== 'string' || !path) continue;
-        // Берём только latest или первую версию
         if (entry.version === 'latest' || !latestMap[word]) {
           latestMap[word] = path;
         }
       }
 
-      // Определяем базовую папку из путей (берём домен из CONFIG и папку из манифеста)
-      // Пример path: "styles/new/кот_latest.png" → folder: "styles/new/"
+      // Группируем по папкам
       const folderMap = {};
       for (const [word, path] of Object.entries(latestMap)) {
         const match = path.match(/^(styles\/[^\/]+)\//);
@@ -146,7 +128,6 @@ class ScientificProvider extends BaseProvider {
         folderMap[folder].push({ word: word.toLowerCase(), path, folder });
       }
 
-      // Сохраняем группы слов по папкам
       this.wordGroups = folderMap;
       this.wordPool = Object.values(folderMap).flat();
       console.log(`📚 Manifest loaded: ${this.wordPool.length} words in ${Object.keys(folderMap).length} folders`);
@@ -165,13 +146,6 @@ class ScientificProvider extends BaseProvider {
     return words;
   }
 
-  /**
-   * Категоризация по фонетической сложности:
-   * A1: ≤3 буквы, 0 кластеров согласных (3+ подряд)
-   * A2: ≤5 букв, ≤1 кластер
-   * B1: ≤8 букв, ≤2 кластера
-   * B2: всё остальное
-   */
   categorize(words) {
     const stages = { A1: [], A2: [], B1: [], B2: [] };
     for (const entry of words) {
@@ -184,7 +158,7 @@ class ScientificProvider extends BaseProvider {
       else if (len <= 8 && clusters <= 2) stages.B1.push(entry);
       else stages.B2.push(entry);
     }
-    // Гарантируем минимум 5 слов в каждой стадии
+    // Минимум 5 слов в каждой стадии
     const all = [...stages.A1, ...stages.A2, ...stages.B1, ...stages.B2];
     for (const key of ['A1', 'A2', 'B1', 'B2']) {
       while (stages[key].length < 5) {
@@ -198,8 +172,7 @@ class ScientificProvider extends BaseProvider {
   async generateStages(lessonsPerStage = 10) {
     await this.loadManifest();
     if (!this.wordPool.length) {
-      console.warn('⚠️ Manifest empty, using fallback Russian words');
-      // Fallback: используем слова из старого curriculum если манифест недоступен
+      // Fallback: слова из старого curriculum
       this.wordPool = [
         { word: 'кот', folder: 'styles/new' }, { word: 'дом', folder: 'styles/new' },
         { word: 'мак', folder: 'styles/new' }, { word: 'сок', folder: 'styles/new' },
@@ -215,7 +188,6 @@ class ScientificProvider extends BaseProvider {
       this.wordGroups = { 'styles/new': this.wordPool };
     }
 
-    // Группируем по папкам, затем фильтруем по языку
     const langGroups = {};
     for (const [folder, words] of Object.entries(this.wordGroups)) {
       const filtered = this.filterByLang(words, this.targetLang);
@@ -224,12 +196,8 @@ class ScientificProvider extends BaseProvider {
       }
     }
 
-    // Берём первую подходящую группу (по умолчанию папку с нужным языком)
     const firstFolder = Object.keys(langGroups)[0];
-    if (!firstFolder) {
-      console.warn('⚠️ No words found for language:', this.targetLang);
-      return [];
-    }
+    if (!firstFolder) return [];
 
     this.stageWords = langGroups[firstFolder];
     const assetBaseUrl = `https://krivich.github.io/open-word-images/${firstFolder}/`;
@@ -254,7 +222,7 @@ class ScientificProvider extends BaseProvider {
             target_word: target.word.toUpperCase(),
             distractor_pool: distractors,
             distractor_count: 3,
-            assetBaseUrl // ← Путь к папке с картинками
+            assetBaseUrl
           },
           meta: {
             pedagogical_goal: `Чтение "${target.word}" (${stageId})`,
@@ -265,14 +233,13 @@ class ScientificProvider extends BaseProvider {
           }
         });
       }
-
       stages.push({
         id: stageId,
         name: { A1: 'Первые звуки', A2: 'Простые слова', B1: 'Сложные слова', B2: 'Длинные слова' }[stageId],
         description: { A1: 'Короткие слова', A2: 'Слова до 5 букв', B1: 'Слова 5-8 букв', B2: 'Длинные слова' }[stageId],
         provider: 'scientific',
         word_pool: words.map(w => w.word),
-        assetBaseUrl, // ← Базовый URL для стадии
+        assetBaseUrl,
         lessons
       });
     }
@@ -335,11 +302,11 @@ const SVG_FALLBACK = 'data:image/svg+xml,' +
 // 🔊 ЗВУКИ
 // ==========================================
 const sounds = {
-  click: null,    // клик по кнопке "Дальше" / "Попробовать ещё раз"
-  success: null,  // правильный ответ
-  wrong: null,    // неправильный ответ
-  win: null,      // финальная победа
-  lose: null      // Game Over
+  click: null,
+  success: null,
+  wrong: null,
+  win: null,
+  lose: null
 };
 
 function initSounds() {
@@ -366,7 +333,7 @@ const CONFIG = {
   curriculumPath: 'curriculum.json',
   imageBaseUrl: 'https://krivich.github.io/open-word-images/styles/new/',
   imageSuffix: '_latest_256.png',
-  storageKey: 'reading_game_progress_v2' // v2 — изменилась структура с metrics
+  storageKey: 'reading_game_progress_v2'
 };
 
 let state = {
@@ -375,10 +342,10 @@ let state = {
   lessonIdx: 0,
   lives: 3,
   isAnswered: false,
-  currentRuntime: null,      // 🔒 Кэш для детерминированного retry
-  assetMap: {},              // 🖼️ Иерархический маппинг display → asset_key
-  providerInstance: null,    // 🏗️ Активный провайдер
-  metrics: {                 // 📊 Метрики геймплея
+  currentRuntime: null,
+  assetMap: {},
+  providerInstance: null,
+  metrics: {
     streak: 0,
     errors: 0,
     totalAnswers: 0,
@@ -416,7 +383,6 @@ function resolveAssetKey(displayText) {
 function calculateAvgReaction(reactionTime) {
   const m = state.metrics;
   if (m.totalAnswers === 1) return reactionTime;
-  // EMA: 0.8 * новое + 0.2 * старое (быстрее реагирует на изменения)
   return Math.round(0.8 * reactionTime + 0.2 * m.avgReaction);
 }
 
@@ -433,12 +399,10 @@ const btnScientific = document.getElementById('btn-scientific');
 async function init() {
   initSounds();
 
-  // Обработчики кнопок выбора уровня
   btnEasy.addEventListener('click', () => startGame('curriculum-simple.json'));
   btnNormal.addEventListener('click', () => startGame('curriculum.json'));
   btnScientific.addEventListener('click', () => startScientific());
 
-  // Если конфиг указан в URL — сразу запускаем игру
   const params = new URLSearchParams(window.location.search);
   if (params.get('level') === 'scientific') {
     startScientific();
@@ -447,9 +411,6 @@ async function init() {
   }
 }
 
-/**
- * 🔬 Запуск научного провайдера: загружает манифест → генерирует курс → игра
- */
 async function startScientific() {
   startScreen.classList.add('hidden');
   gameContainer.classList.remove('hidden');
@@ -458,10 +419,8 @@ async function startScientific() {
   loadProgress();
 
   try {
-    console.log('🔬 Starting scientific provider...');
     const provider = PROVIDERS.scientific;
     const stages = await provider.generateStages(10);
-    console.log(`🔬 Generated ${stages.length} stages`);
     if (!stages.length) throw new Error('Нет стадий');
 
     state.curriculum = {
@@ -470,13 +429,11 @@ async function startScientific() {
       asset_map: {},
       stages
     };
-    console.log(`🔬 Научный курс: ${stages.reduce((s, st) => s + st.lessons.length, 0)} уроков`);
     enterStage();
     startLesson(false);
   } catch (e) {
-    console.error('❌ Scientific init error:', e.name, e.message, e.stack);
+    console.error('❌ Scientific init error:', e);
     els.targetWord.textContent = `❌ ${e.message}`;
-    alert(`Научный уровень:\n${e.message}\n\nПроверьте консоль для деталей.`);
   }
 }
 
@@ -494,19 +451,16 @@ async function startGame(configPath) {
     if (!state.curriculum.stages || !state.curriculum.stages.length) {
       throw new Error('Нет stages в ' + configPath);
     }
-    console.log(`📚 Загружен конфиг: ${configPath} (${state.curriculum.stages.length} стадий)`);
     enterStage();
     startLesson(false);
   } catch (err) {
     els.targetWord.textContent = '❌ Ошибка загрузки';
     console.error('❌ Init error:', err);
-    alert(`Не удалось загрузить ${customConfig}\nПроверьте что файл лежит рядом с index.html`);
   }
 
-  // Используем делегирование событий для надежности
+  // Делегирование событий для надежности
   document.addEventListener('click', (e) => {
     if (e.target.closest('#next-btn')) {
-      console.log('🔵 [Delegation] Клик по кнопке "Дальше" пойман!');
       playSound('click');
       nextLesson();
     }
@@ -515,33 +469,23 @@ async function startGame(configPath) {
       resetProgress();
     }
     if (e.target.closest('#restart-btn')) {
-      // Обработка кнопки рестарта внутри модалки
       const btn = e.target.closest('#restart-btn');
       if (btn.onclick) btn.onclick();
     }
   });
 }
 
-/**
- * Вход в стадию: собираем иерархический asset_map, сбрасываем курсор
- */
 function enterStage() {
   state.assetMap = {
     ...(state.curriculum.asset_map || {}),
     ...(state.curriculum.stages[state.stageIdx]?.asset_map || {})
   };
-  // При входе в новую стадию начинаем с первого урока
   if (state.lessonIdx === 0 || state.lessonIdx >= (state.curriculum.stages[state.stageIdx]?.lessons?.length || 0)) {
     state.lessonIdx = 0;
   }
 }
 
-/**
- * Выбор провайдера — всегда явный из урока или stage
- * Если урок имеет runtime.image_words → static (обратная совместимость)
- */
 function selectProvider(stage, lessonConfig) {
-  // Явный runtime = статический урок
   if (lessonConfig?.runtime?.image_words?.length) return PROVIDERS.static;
   const name = lessonConfig?.provider || stage?.provider || 'static';
   return PROVIDERS[name] || PROVIDERS.static;
@@ -555,13 +499,8 @@ function loadProgress() {
       state.stageIdx = p.stageIdx ?? 0;
       state.lessonIdx = p.lessonIdx ?? 0;
       state.lives = p.lives ?? 3;
-      // Восстанавливаем метрики если есть
-      if (p.metrics) {
-        state.metrics = { ...state.metrics, ...p.metrics };
-      }
-    } catch (e) {
-      console.warn('⚠️ Не удалось распарсить сохранённый прогресс:', e);
-    }
+      if (p.metrics) state.metrics = { ...state.metrics, ...p.metrics };
+    } catch (e) { console.warn('⚠️ Progress parse error:', e); }
   }
   updateUI();
 }
@@ -582,28 +521,21 @@ function updateUI() {
 }
 
 function startLesson(isRetry = false) {
-  console.log('🟢 [startLesson] Начало...');
   state.isAnswered = false;
-  
-  // Принудительно скрываем всё лишнее перед стартом урока
   els.feedbackOverlay.classList.add('hidden');
   els.parentZone.classList.add('hidden');
-  els.nextBtn.style.display = 'none'; // Скрываем кнопку, пока не ответят
+  els.nextBtn.style.display = 'none';
   els.grid.innerHTML = '';
 
   const stage = state.curriculum.stages[state.stageIdx];
-  if (!stage) { console.warn('🟡 [startLesson] Нет стадии!'); showEndScreen(true); return; }
+  if (!stage) { showEndScreen(true); return; }
 
-  console.log(`🟢 [startLesson] Stage: ${state.stageIdx}, LessonIdx: ${state.lessonIdx} (всего: ${stage.lessons?.length || 0})`);
-  
   const lessons = stage.lessons || [];
 
-  // Определяем урок: статический из списка или виртуальный для динамической стадии
   let lessonConfig;
   if (state.lessonIdx < lessons.length) {
     lessonConfig = lessons[state.lessonIdx];
   } else if (stage.provider && !lessons.length) {
-    // Динамическая стадия без уроков — генерируем на лету
     lessonConfig = { provider: stage.provider, config: stage };
   } else {
     showEndScreen(true);
@@ -612,10 +544,9 @@ function startLesson(isRetry = false) {
 
   state.providerInstance = selectProvider(stage, lessonConfig);
 
-  // Формируем config: мержим stage (word_pool, assetBaseUrl и т.д.) + overrides урока
   const mergedConfig = {
     ...stage,
-    assetBaseUrl: lessonConfig.config?.assetBaseUrl || stage.assetBaseUrl, // ← Приоритет у урока
+    assetBaseUrl: lessonConfig.config?.assetBaseUrl || stage.assetBaseUrl,
     ...(lessonConfig.config || lessonConfig.runtime || {})
   };
 
@@ -629,10 +560,9 @@ function startLesson(isRetry = false) {
   const runtime = state.providerInstance.generate(context);
   if (!runtime) { showEndScreen(true); return; }
 
-  // Передаём assetBaseUrl в runtime для renderLesson
   runtime.assetBaseUrl = mergedConfig.assetBaseUrl;
 
-  state.currentRuntime = runtime; // 🔒 Сохраняем для retry
+  state.currentRuntime = runtime;
   state.metrics.startTime = Date.now();
 
   const meta = lessonConfig.meta || {};
@@ -640,11 +570,9 @@ function startLesson(isRetry = false) {
 }
 
 function renderLesson(runtime, meta) {
-  console.log('🟡 [renderLesson] Рендерю урок:', runtime.target_word);
   els.targetWord.textContent = runtime.target_word;
   updateUI();
 
-  // Приоритет: URL из урока → глобальный URL из конфига
   const baseUrl = runtime.assetBaseUrl || CONFIG.imageBaseUrl;
 
   const imageWords = [...runtime.image_words];
@@ -665,7 +593,6 @@ function renderLesson(runtime, meta) {
     card.dataset.index = idx;
     const img = document.createElement('img');
     const assetKey = resolveAssetKey(word);
-    // Собираем URL: baseUrl + assetKey + суффикс
     img.src = `${baseUrl}${assetKey}${CONFIG.imageSuffix}`;
     img.alt = word;
     img.loading = 'lazy';
@@ -676,9 +603,6 @@ function renderLesson(runtime, meta) {
   });
 }
 
-// ==========================================
-// 🎯 ANSWER HANDLING
-// ==========================================
 function handleAnswer(selectedIdx, correctIndex, meta) {
   if (state.isAnswered) return;
   state.isAnswered = true;
@@ -694,11 +618,9 @@ function handleAnswer(selectedIdx, correctIndex, meta) {
   cards[selectedIdx].classList.add(isCorrect ? 'correct' : 'wrong');
   if (!isCorrect) cards[correctIndex].classList.add('correct');
 
-  // Звуки
   if (isCorrect) playSound('success');
   else playSound('wrong');
 
-  // При последней жизни — сразу Game Over, без feedback overlay
   if (!isCorrect && state.lives <= 1) {
     state.lives = 0;
     state.metrics.errors++;
@@ -735,40 +657,33 @@ function handleAnswer(selectedIdx, correctIndex, meta) {
 }
 
 function nextLesson() {
-  console.log('🔵 [nextLesson] Кнопка "Дальше" нажата!');
   const wordEl = document.getElementById('target-word');
   if (wordEl) wordEl.textContent = 'Loading...';
-  
+
   try {
-    console.log('🔵 [nextLesson] Запускаю логику перехода...');
     state.currentRuntime = null;
     state.lessonIdx++;
 
     const stage = state.curriculum.stages[state.stageIdx];
     const lessons = stage?.lessons || [];
     const isDynamicStage = stage?.provider && !stage?.lessons?.length;
-    console.log(`🔵 [nextLesson] Stage: ${state.stageIdx}, LessonIdx: ${state.lessonIdx}`);
 
     if (!isDynamicStage && state.lessonIdx >= lessons.length) {
-        console.log('🔵 [nextLesson] Перехожу на новую стадию');
-        state.lessonIdx = 0;
-        state.stageIdx++;
+      state.lessonIdx = 0;
+      state.stageIdx++;
       if (state.stageIdx >= state.curriculum.stages.length) {
-        console.log('🔵 [nextLesson] Курс закончен!');
         showEndScreen(true);
         return;
       }
       enterStage();
     }
 
-    console.log('🔵 [nextLesson] Вызываю startLesson...');
     saveProgress();
     els.feedbackOverlay.classList.add('hidden');
     startLesson(false);
   } catch (e) {
     console.error('❌ [nextLesson] Ошибка:', e);
     if (wordEl) wordEl.textContent = `Error: ${e.message}`;
-    alert(`Ошибка перехода:\n${e.message}`);
   }
 }
 
@@ -789,7 +704,6 @@ function showEndScreen(isWin) {
     els.endMessage.textContent = `Не расстраивайся! Начнём секцию «${stageName}» заново с полными жизнями.`;
     els.restartBtn.textContent = 'Попробовать ещё раз';
     els.restartBtn.onclick = () => {
-      // 🔁 Откат до начала секции + восстановление жизней
       state.lessonIdx = 0;
       state.lives = 3;
       saveProgress();
@@ -808,9 +722,6 @@ function resetProgress() {
     location.reload();
   }
 }
-
-// Делаем функции доступными для тестов
-window.nextLesson = nextLesson;
 
 // Старт
 init();
