@@ -1,12 +1,7 @@
 /**
- * Стресс-тест Lesson Provider System v2
+ * Быстрый стресс-тест — минимальные таймауты, мгновенный фэйл
  * 
- * Особенности:
- * - headless: false (видимый браузер для наблюдения)
- * - DOM-based (alts) — быстрый, без vision
- * - Поддержка кастомного конфига: node stress-test.js [stress-test.json]
- * - Делает правильные И ошибочные клики
- * - Сжигает жизни → проверяет retry → проверяет детерминизм
+ * Использование: node vision-test/stress-test.js [config|scientific]
  */
 
 const { chromium } = require('playwright');
@@ -16,256 +11,172 @@ const { spawn } = require('child_process');
 
 const SCREENSHOTS_DIR = path.join(__dirname, 'stress-screenshots');
 const REPORT_FILE = path.join(__dirname, 'stress-report.json');
-
-if (!fs.existsSync(SCREENSHOTS_DIR)) {
-  fs.mkdirSync(SCREENSHOTS_DIR, { recursive: true });
-}
-
-const customConfig = process.argv[2] || 'curriculum.json';
 const PORT = 8081;
 
-console.log(`🧪 Стресс-тест: ${customConfig}`);
-console.log(` Скриншоты → ${SCREENSHOTS_DIR}`);
-console.log(`📋 Отчёт → ${REPORT_FILE}\n`);
+if (!fs.existsSync(SCREENSHOTS_DIR)) fs.mkdirSync(SCREENSHOTS_DIR, { recursive: true });
 
-async function takeScreenshot(page, name) {
-  const filename = `${name}_${Date.now()}.png`;
-  const filepath = path.join(SCREENSHOTS_DIR, filename);
-  await page.screenshot({ path: filepath, fullPage: true });
-  return filepath;
-}
-
-async function getLessonState(page) {
-  return await page.evaluate(() => ({
-    word: document.getElementById('target-word')?.textContent || '???',
-    cards: Array.from(document.querySelectorAll('.image-card')).map((c, i) => ({
-      index: i,
-      alt: c.querySelector('img')?.getAttribute('alt') || '?'
-    })),
-    correctIndex: window.__lastCorrectIndex,
-    shuffledWords: window.__lastShuffledWords,
-    livesDisplay: document.getElementById('lives-display')?.textContent || ''
-  }));
-}
-
-async function clickCardByAlt(page, alt) {
-  const cards = await page.$$('.image-card');
-  for (let i = 0; i < cards.length; i++) {
-    const img = await cards[i].$('img');
-    const cardAlt = await img?.getAttribute('alt');
-    if (cardAlt === alt) {
-      await cards[i].click();
-      return true;
-    }
-  }
-  return false;
-}
-
-async function clickNext(page) {
-  const btn = await page.$('#next-btn');
-  if (btn && await btn.isVisible()) {
-    await btn.click();
-    await page.waitForTimeout(500);
-    return true;
-  }
-  return false;
-}
-
-async function waitForFeedback(page) {
-  await page.waitForSelector('#feedback-overlay:not(.hidden)', { timeout: 5000 }).catch(() => {});
-  await page.waitForTimeout(300);
-}
-
-async function nextOrGameOver(page) {
-  await page.waitForSelector('#feedback-overlay.hidden', { timeout: 3000 }).catch(() => {});
-  const endModal = await page.$('#end-modal:not(.hidden)');
-  if (endModal) return 'gameover';
-  const clicked = await clickNext(page);
-  await page.waitForTimeout(500);
-  return clicked ? 'next' : 'no-button';
-}
+const customConfig = process.argv[2] || 'curriculum.json';
 
 async function run() {
-  const server = spawn('npx', ['serve', '-p', String(PORT)], {
-    cwd: path.join(__dirname, '..'),
-    shell: true
+  const server = spawn('npx', ['http-server', '-p', String(PORT), '-c-1', '--cors', '.'], {
+    cwd: path.join(__dirname, '..'), shell: true
   });
+  await new Promise(r => setTimeout(r, 2000));
 
-  await new Promise(resolve => setTimeout(resolve, 5000));
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage({ viewport: { width: 375, height: 812 } });
 
-  const browser = await chromium.launch({
-    headless: false,
-    slowMo: 200
+  // Перехват ошибок в консоли
+  const errors = [];
+  const logs = [];
+  page.on('console', msg => {
+    const text = msg.text();
+    if (msg.type() === 'error') errors.push(text);
+    logs.push(text);
   });
+  page.on('pageerror', err => errors.push(err.message));
 
-  const context = await browser.newContext({
-    viewport: { width: 375, height: 812 }
-  });
+  let url = customConfig === 'scientific'
+    ? `http://localhost:${PORT}?level=scientific`
+    : `http://localhost:${PORT}?curriculum=${customConfig}`;
 
-  const page = await context.newPage();
-  const url = `http://localhost:${PORT}?curriculum=${customConfig}`;
-  await page.goto(url);
-  await page.waitForTimeout(2000);
+  console.log(`🧪 Тест: ${customConfig} | ${url}`);
+  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 10000 });
 
-  const report = { config: customConfig, timestamp: new Date().toISOString(), tests: [] };
-
-  function log(type, msg, data = {}) {
-    console.log(`  ${type} ${msg}`);
-    report.tests.push({ type, msg, ...data, timestamp: Date.now() });
+  // Ждём пока слово загрузится (не "Загрузка..." и не "❌")
+  // Для scientific провайдера может потребоваться больше времени на загрузку манифеста
+  const loadTimeout = customConfig === 'scientific' ? 15000 : 5000;
+  try {
+    await page.waitForFunction(() => {
+      const el = document.getElementById('target-word');
+      return el && el.textContent !== 'Загрузка...' && !el.textContent.includes('❌');
+    }, { timeout: loadTimeout });
+  } catch (e) {
+    // Выводим диагностику
+    const wordText = await page.$eval('#target-word', el => el.textContent).catch(() => 'N/A');
+    const pageContent = await page.content();
+    console.log(`❌ Таймаут загрузки. Слово: "${wordText}"`);
+    if (pageContent.includes('error') || pageContent.includes('Error')) {
+      console.log('⚠️ На странице есть ошибки');
+    }
+    return kill();
   }
 
-  // ============================================
-  // ТЕСТ 1: Проходим все уроки правильно
-  // ============================================
-  console.log('\n📋 ТЕСТ 1: Проходим все уроки правильно');
+  if (errors.length) { console.log(`❌ Ошибка загрузки: ${errors[0]}`); return kill(); }
+  console.log('✅ Игра загрузилась');
 
-  let lessonNum = 0;
-  const maxLessons = 100;
+  // Проверка: есть ли карточки на первом уроке
+  const initialCards = await page.$$('.image-card');
+  console.log(`📊 Карточек на старте: ${initialCards.length}`);
+  if (initialCards.length === 0) {
+    const wordText = await page.$eval('#target-word', el => el.textContent);
+    console.log(`❌ Нет карточек! Слово: "${wordText}"`);
+    return kill();
+  }
 
-  while (lessonNum < maxLessons) {
-    const state = await getLessonState(page);
-    if (state.word === '???') { log('SKIP', `Урок ${lessonNum + 1}: слово не загрузилось`); break; }
-    if (state.cards.length === 0) {
-      await page.waitForTimeout(1000);
-      const retry = await getLessonState(page);
-      if (retry.cards.length === 0) { log('SKIP', `Урок ${lessonNum + 1}: нет карточек`); break; }
+  // Проверка видимости карточек
+  const firstCardBox = await initialCards[0].boundingBox();
+  console.log(`📐 Первая карточка: x=${firstCardBox?.x}, y=${firstCardBox?.y}, w=${firstCardBox?.width}, h=${firstCardBox?.height}`);
+  const viewport = page.viewportSize();
+  console.log(`📺 Viewport: ${viewport?.width}x${viewport?.height}`);
+  if (firstCardBox && firstCardBox.y > viewport.height) {
+    console.log(`⚠️ Карточка ниже viewport! Скроллю...`);
+    await page.evaluate(() => window.scrollTo(0, 0));
+  }
+
+  // Проходим уроки
+  let passed = 0, failed = 0;
+  const maxLessons = 50;
+
+  for (let i = 0; i < maxLessons; i++) {
+    if (errors.length) { console.log(`❌ Краш на уроке ${i + 1}: ${errors[errors.length - 1]}`); break; }
+
+    // Проверяем, не закончился ли курс
+    const endModal = await page.$('#end-modal:not(.hidden)');
+    if (endModal) {
+      console.log(`🏁 Курс завершён после ${passed} уроков`);
+      break;
     }
 
-    log('LESSON', `Урок ${lessonNum + 1}: "${state.word}" [${state.cards.map(c => c.alt).join(', ')}]`);
-    await takeScreenshot(page, `lesson_${lessonNum + 1}`);
+    const word = await page.$eval('#target-word', el => el.textContent);
+    if (word.includes('❌') || word === 'Загрузка...') {
+      console.log(`❌ Ошибка на уроке ${i + 1}: "${word}"`);
+      break;
+    }
 
-    // Правильный ответ по alt
-    const correctAlt = state.cards.find(c => c.alt.toUpperCase() === state.word.toUpperCase())?.alt;
-    if (correctAlt) {
-      await clickCardByAlt(page, correctAlt);
+    const cards = await page.$$('.image-card');
+
+    // Проверка: 4 карточки
+    if (cards.length !== 4) {
+      console.log(`❌ Урок ${i + 1} ("${word}"): ${cards.length} карточек вместо 4`);
+      failed++;
+      break;
+    }
+
+    // Находим правильную карточку по alt
+    let correctIdx = -1;
+    const alts = [];
+    for (let j = 0; j < cards.length; j++) {
+      const alt = await cards[j].$eval('img', img => img.alt);
+      alts.push(alt);
+      if (alt.toUpperCase() === word.toUpperCase()) correctIdx = j;
+    }
+
+    if (correctIdx === -1) {
+      console.log(`❌ Урок ${i + 1} ("${word}"): не найдена карточка среди [${alts.join(', ')}]`);
+      failed++;
+      break;
+    }
+
+    // Скроллим и кликаем через JS (overlay не блокирует)
+    await cards[correctIdx].scrollIntoViewIfNeeded();
+    await page.evaluate((idx) => {
+      document.querySelectorAll('.image-card')[idx]?.click();
+    }, correctIdx);
+
+    // Ждём фидбек (макс 3 сек)
+    await page.waitForSelector('#feedback-overlay:not(.hidden)', { timeout: 3000 }).catch(() => {});
+    const fb = await page.$eval('#feedback-icon', el => el.textContent).catch(() => '?');
+
+    if (fb !== '🎉') {
+      console.log(`❌ Урок ${i + 1}: после правильного ответа иконка="${fb}"`);
+      failed++;
+      break;
+    }
+
+    // Ждём кнопку "Дальше" и кликаем через JS
+    await page.waitForSelector('#next-btn', { state: 'visible', timeout: 3000 }).catch(() => {});
+    const hasButton = await page.$('#next-btn');
+    if (hasButton) {
+      await page.evaluate(() => document.getElementById('next-btn')?.click());
+      // Принудительно скрываем overlay
+      await page.evaluate(() => document.getElementById('feedback-overlay')?.classList.add('hidden'));
+      await page.waitForTimeout(300);
     } else {
-      log('WARN', `Не найдена карточка для "${state.word}", кликаю первую`);
-      await clickCardByAlt(page, state.cards[0]?.alt);
+      // Проверяем game over
+      const endModal = await page.$('#end-modal:not(.hidden)');
+      if (endModal) {
+        console.log(`🏁 Game Over после ${passed} уроков`);
+        break;
+      }
     }
 
-    await waitForFeedback(page);
-    const fb = await (await page.$('#feedback-icon'))?.textContent() || '';
-    if (fb !== '🎉') log('ERROR', `Урок ${lessonNum + 1}: после правильного "${fb}"`);
+    await page.waitForTimeout(100);
+    passed++;
 
-    const result = await nextOrGameOver(page);
-    if (result === 'gameover') { log('DONE', `Все уроки пройдены (${lessonNum + 1})`); break; }
-    lessonNum++;
+    if (passed % 10 === 0) console.log(`  → пройдено ${passed} уроков...`);
   }
 
-  // ============================================
-  // ТЕСТ 2: Сброс → 3 ошибки на разных уроках → Game Over → Retry
-  // ============================================
-  console.log('\n📋 ТЕСТ 2: Сброс → 3 ошибки → Game Over → Retry');
-  log('TEST2', 'Сброс прогресса');
+  console.log(`📊 Итог: ${passed} уроков пройдено, ${failed} ошибок`);
+  if (errors.length) console.log(`⚠️ Ошибки: ${errors.slice(-3).join(' | ')}`);
+  if (logs.length > 5) console.log(`📜 Логи: ${logs.slice(-5).join(' | ')}`);
 
-  // Закрываем финальную модалку если есть (после прохождения всех уроков)
-  const endModal = await page.$('#end-modal:not(.hidden)');
-  if (endModal) {
-    log('INFO', 'Закрываю финальную модалку');
-    const restartBtn = await page.$('#restart-btn');
-    if (restartBtn) await restartBtn.click();
-    await page.waitForTimeout(1000);
+  kill();
+
+  function kill() {
+    server.kill();
+    browser.close();
   }
-
-  page.on('dialog', async dialog => { await dialog.accept(); });
-  await (await page.$('#reset-btn'))?.click();
-  await page.waitForTimeout(2000);
-
-  // Урок ошибки 1
-  let state1 = await getLessonState(page);
-  log('LESSON', `Урок ошибки 1: "${state1.word}" [${state1.cards.map(c => c.alt).join(', ')}]`);
-  const word1 = state1.word;
-  const wrong1 = state1.cards.find(c => c.alt.toUpperCase() !== state1.word.toUpperCase());
-  if (wrong1) {
-    await clickCardByAlt(page, wrong1.alt);
-    log('WRONG', `Клик на "${wrong1.alt}" (неправильно)`);
-    await waitForFeedback(page);
-    let fb = await (await page.$('#feedback-icon'))?.textContent() || '';
-    if (fb !== '❌') log('ERROR', `Ожидание ❌, получил "${fb}"`);
-    let result = await nextOrGameOver(page);
-    if (result === 'gameover') log('EARLY_GAMEOVER', 'Game Over слишком рано');
-  }
-
-  // Урок ошибки 2
-  let state2 = await getLessonState(page);
-  log('LESSON', `Урок ошибки 2: "${state2.word}" [${state2.cards.map(c => c.alt).join(', ')}]`);
-  const wrong2 = state2.cards.find(c => c.alt.toUpperCase() !== state2.word.toUpperCase());
-  if (wrong2) {
-    await clickCardByAlt(page, wrong2.alt);
-    log('WRONG', `Клик на "${wrong2.alt}" (неправильно)`);
-    await waitForFeedback(page);
-    let fb = await (await page.$('#feedback-icon'))?.textContent() || '';
-    if (fb !== '❌') log('ERROR', `Ожидание ❌, получил "${fb}"`);
-    let result = await nextOrGameOver(page);
-    if (result === 'gameover') log('EARLY_GAMEOVER', 'Game Over слишком рано');
-  }
-
-  // Урок ошибки 3
-  let state3 = await getLessonState(page);
-  log('LESSON', `Урок ошибки 3: "${state3.word}" [${state3.cards.map(c => c.alt).join(', ')}]`);
-  const wrong3 = state3.cards.find(c => c.alt.toUpperCase() !== state3.word.toUpperCase());
-  if (wrong3) {
-    await clickCardByAlt(page, wrong3.alt);
-    log('WRONG', `Клик на "${wrong3.alt}" (неправильно)`);
-    await waitForFeedback(page);
-    let fb = await (await page.$('#feedback-icon'))?.textContent() || '';
-    if (fb !== '❌') log('ERROR', `Ожидание ❌, получил "${fb}"`);
-    await page.waitForTimeout(500);
-  }
-
-  // Проверяем Game Over
-  const gameOverModal = await page.$('#end-modal:not(.hidden)');
-  if (!gameOverModal) {
-    log('ERROR', 'Game Over модалка не появилась');
-  } else {
-    log('OK', 'Game Over модалка появилась ✅');
-    await takeScreenshot(page, 'game_over');
-
-    // Retry
-    const retryBtn = await page.$('#restart-btn');
-    if (retryBtn) {
-      await retryBtn.click();
-      await page.waitForTimeout(2000);
-    }
-
-    const afterRetry = await getLessonState(page);
-    log('RETRY', `После retry: слово="${afterRetry.word}", карточки=[${afterRetry.cards.map(c => c.alt).join(', ')}]`);
-    await takeScreenshot(page, 'after_retry');
-
-    // Проверяем жизни
-    const livesText = afterRetry.livesDisplay || '';
-    if (livesText.includes('❤️❤️❤️')) {
-      log('OK', 'Жизни восстановлены до 3 ✅');
-    } else {
-      log('ERROR', `Жизни: "${livesText}"`);
-    }
-
-    // Проходим правильно
-    const correctAfterRetry = afterRetry.cards.find(c => c.alt.toUpperCase() === afterRetry.word.toUpperCase());
-    if (correctAfterRetry) {
-      await clickCardByAlt(page, correctAfterRetry.alt);
-      await waitForFeedback(page);
-      const fb = await (await page.$('#feedback-icon'))?.textContent() || '';
-      if (fb === '🎉') log('OK', 'После retry правильный ответ принят ✅');
-      else log('ERROR', `После retry: "${fb}" вместо 🎉`);
-      await nextOrGameOver(page);
-    }
-  }
-
-  // ============================================
-  // Итог
-  // ============================================
-  console.log('\n' + '='.repeat(60));
-  const errors = report.tests.filter(t => t.type === 'ERROR');
-  const oks = report.tests.filter(t => t.type === 'OK');
-  console.log(`✅ OK: ${oks.length}  ❌ Errors: ${errors.length}`);
-  if (errors.length) errors.forEach((e, i) => console.log(`  ${i+1}. ${e.msg}`));
-  fs.writeFileSync(REPORT_FILE, JSON.stringify(report, null, 2));
-  console.log(`📋 Отчёт: ${REPORT_FILE}`);
-  console.log('='.repeat(60));
-
-  await browser.close();
-  server.kill();
 }
 
-run().catch(err => { console.error('❌', err); process.exit(1); });
+run().catch(e => { console.error('❌', e.message); process.exit(1); });

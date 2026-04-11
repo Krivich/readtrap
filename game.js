@@ -117,19 +117,29 @@ class ScientificProvider extends BaseProvider {
   async loadManifest() {
     if (this.wordPool) return this.wordPool;
     try {
-      const res = await fetch(this.manifestUrl);
-      if (!res.ok) throw new Error(`Manifest ${res.status}`);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
+      const res = await fetch(this.manifestUrl, { signal: controller.signal });
+      clearTimeout(timeout);
+      if (!res.ok) throw new Error(`Manifest HTTP ${res.status}`);
       const data = await res.json();
-      // Группируем по слову (берём только latest-версию)
+      console.log(`📦 Manifest type: ${Array.isArray(data) ? 'array' : typeof data}, length: ${Array.isArray(data) ? data.length : Object.keys(data).length}`);
+
       const latestMap = {};
-      for (const entry of data) {
-        if (entry.version === 'latest' || !latestMap[entry.word]) {
-          latestMap[entry.word] = entry.path;
+      const entries = Array.isArray(data) ? data : (data.words || data.entries || []);
+      for (const entry of entries) {
+        const word = entry.word || entry.key || '';
+        if (typeof word !== 'string') continue;
+        if (entry.version === 'latest' || !latestMap[word]) {
+          latestMap[word] = entry.path || '';
         }
       }
-      this.wordPool = Object.entries(latestMap).map(([word, path]) => ({ word: word.toLowerCase(), path }));
+      this.wordPool = Object.entries(latestMap)
+        .filter(([w]) => w.length > 0)
+        .map(([word, path]) => ({ word: word.toLowerCase(), path }));
+      console.log(`📚 Manifest loaded: ${this.wordPool.length} words`);
     } catch (e) {
-      console.error('❌ Manifest load failed:', e);
+      console.error('❌ Manifest load failed:', e.name, e.message);
       this.wordPool = [];
     }
     return this.wordPool;
@@ -221,12 +231,12 @@ class ScientificProvider extends BaseProvider {
 
   selectDistractors(target, pool, count) {
     const filtered = pool.filter(w => w.word !== target.word);
-    if (filtered.length <= count) return filtered;
+    if (filtered.length <= count) return filtered.map(w => w.word);
     const scored = filtered.map(w => {
       const lenDiff = Math.abs(w.word.length - target.word.length);
       const common = w.word.split('').filter(c => target.word.includes(c)).length;
       const firstDiff = w.word[0] !== target.word[0] ? 1 : 0;
-      return { word: w, score: lenDiff * 2 - common - firstDiff + Math.random() * 0.5 };
+      return { word: w.word, score: lenDiff * 2 - common - firstDiff + Math.random() * 0.5 };
     });
     scored.sort((a, b) => a.score - b.score);
     return scored.slice(0, count).map(s => s.word);
@@ -380,7 +390,9 @@ async function init() {
 
   // Если конфиг указан в URL — сразу запускаем игру
   const params = new URLSearchParams(window.location.search);
-  if (params.get('curriculum')) {
+  if (params.get('level') === 'scientific') {
+    startScientific();
+  } else if (params.get('curriculum')) {
     startGame(params.get('curriculum'));
   }
 }
@@ -408,10 +420,10 @@ async function startScientific() {
     console.log(`🔬 Научный курс: ${stages.length} стадий, ${stages.reduce((s, st) => s + st.lessons.length, 0)} уроков`);
     enterStage();
     startLesson(false);
-  } catch (err) {
-    els.targetWord.textContent = '❌ Ошибка загрузки';
-    console.error('❌ Scientific init error:', err);
-    alert('Не удалось загрузить манифест open-word-images. Проверьте интернет.');
+  } catch (e) {
+    console.error('❌ Scientific init error:', e.name, e.message);
+    els.targetWord.textContent = `❌ ${e.message}`;
+    alert(`Научный уровень:\n${e.message}\n\nПроверьте интернет и CORS.`);
   }
 }
 
