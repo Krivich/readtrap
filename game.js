@@ -123,24 +123,37 @@ class ScientificProvider extends BaseProvider {
       clearTimeout(timeout);
       if (!res.ok) throw new Error(`Manifest HTTP ${res.status}`);
       const data = await res.json();
-      console.log(`📦 Manifest type: ${Array.isArray(data) ? 'array' : typeof data}, length: ${Array.isArray(data) ? data.length : Object.keys(data).length}`);
 
       const latestMap = {};
       const entries = Array.isArray(data) ? data : (data.words || data.entries || []);
       for (const entry of entries) {
         const word = entry.word || entry.key || '';
-        if (typeof word !== 'string') continue;
+        const path = entry.path || '';
+        if (typeof word !== 'string' || !path) continue;
+        // Берём только latest или первую версию
         if (entry.version === 'latest' || !latestMap[word]) {
-          latestMap[word] = entry.path || '';
+          latestMap[word] = path;
         }
       }
-      this.wordPool = Object.entries(latestMap)
-        .filter(([w]) => w.length > 0)
-        .map(([word, path]) => ({ word: word.toLowerCase(), path }));
-      console.log(`📚 Manifest loaded: ${this.wordPool.length} words`);
+
+      // Определяем базовую папку из путей (берём домен из CONFIG и папку из манифеста)
+      // Пример path: "styles/new/кот_latest.png" → folder: "styles/new/"
+      const folderMap = {};
+      for (const [word, path] of Object.entries(latestMap)) {
+        const match = path.match(/^(styles\/[^\/]+)\//);
+        const folder = match ? match[1] : 'styles/new';
+        if (!folderMap[folder]) folderMap[folder] = [];
+        folderMap[folder].push({ word: word.toLowerCase(), path, folder });
+      }
+
+      // Сохраняем группы слов по папкам
+      this.wordGroups = folderMap;
+      this.wordPool = Object.values(folderMap).flat();
+      console.log(`📚 Manifest loaded: ${this.wordPool.length} words in ${Object.keys(folderMap).length} folders`);
     } catch (e) {
       console.error('❌ Manifest load failed:', e.name, e.message);
       this.wordPool = [];
+      this.wordGroups = {};
     }
     return this.wordPool;
   }
@@ -184,8 +197,26 @@ class ScientificProvider extends BaseProvider {
 
   async generateStages(lessonsPerStage = 10) {
     await this.loadManifest();
-    const filtered = this.filterByLang(this.wordPool, this.targetLang);
-    this.stageWords = this.categorize(filtered);
+    if (!this.wordPool.length) return [];
+
+    // Группируем по папкам, затем фильтруем по языку
+    const langGroups = {};
+    for (const [folder, words] of Object.entries(this.wordGroups)) {
+      const filtered = this.filterByLang(words, this.targetLang);
+      if (filtered.length >= 5) {
+        langGroups[folder] = this.categorize(filtered);
+      }
+    }
+
+    // Берём первую подходящую группу (по умолчанию папку с нужным языком)
+    const firstFolder = Object.keys(langGroups)[0];
+    if (!firstFolder) {
+      console.warn('⚠️ No words found for language:', this.targetLang);
+      return [];
+    }
+
+    this.stageWords = langGroups[firstFolder];
+    const assetBaseUrl = `https://krivich.github.io/open-word-images/${firstFolder}/`;
     const stages = [];
 
     for (const [stageId, words] of Object.entries(this.stageWords)) {
@@ -206,7 +237,8 @@ class ScientificProvider extends BaseProvider {
           config: {
             target_word: target.word.toUpperCase(),
             distractor_pool: distractors,
-            distractor_count: 3
+            distractor_count: 3,
+            assetBaseUrl // ← Путь к папке с картинками
           },
           meta: {
             pedagogical_goal: `Чтение "${target.word}" (${stageId})`,
@@ -217,12 +249,14 @@ class ScientificProvider extends BaseProvider {
           }
         });
       }
+
       stages.push({
         id: stageId,
         name: { A1: 'Первые звуки', A2: 'Простые слова', B1: 'Сложные слова', B2: 'Длинные слова' }[stageId],
         description: { A1: 'Короткие слова', A2: 'Слова до 5 букв', B1: 'Слова 5-8 букв', B2: 'Длинные слова' }[stageId],
         provider: 'scientific',
         word_pool: words.map(w => w.word),
+        assetBaseUrl, // ← Базовый URL для стадии
         lessons
       });
     }
@@ -544,8 +578,12 @@ function startLesson(isRetry = false) {
 
   state.providerInstance = selectProvider(stage, lessonConfig);
 
-  // Формируем config: мержим stage (word_pool, asset_map и т.д.) + overrides урока
-  const mergedConfig = { ...stage, ...(lessonConfig.config || lessonConfig.runtime || {}) };
+  // Формируем config: мержим stage (word_pool, assetBaseUrl и т.д.) + overrides урока
+  const mergedConfig = {
+    ...stage,
+    assetBaseUrl: lessonConfig.config?.assetBaseUrl || stage.assetBaseUrl, // ← Приоритет у урока
+    ...(lessonConfig.config || lessonConfig.runtime || {})
+  };
 
   const context = {
     config: mergedConfig,
@@ -557,6 +595,9 @@ function startLesson(isRetry = false) {
   const runtime = state.providerInstance.generate(context);
   if (!runtime) { showEndScreen(true); return; }
 
+  // Передаём assetBaseUrl в runtime для renderLesson
+  runtime.assetBaseUrl = mergedConfig.assetBaseUrl;
+
   state.currentRuntime = runtime; // 🔒 Сохраняем для retry
   state.metrics.startTime = Date.now();
 
@@ -567,6 +608,9 @@ function startLesson(isRetry = false) {
 function renderLesson(runtime, meta) {
   els.targetWord.textContent = runtime.target_word;
   updateUI();
+
+  // Приоритет: URL из урока → глобальный URL из конфига
+  const baseUrl = runtime.assetBaseUrl || CONFIG.imageBaseUrl;
 
   const imageWords = [...runtime.image_words];
   const correctWord = imageWords[runtime.correct_image_index ?? 0];
@@ -586,7 +630,8 @@ function renderLesson(runtime, meta) {
     card.dataset.index = idx;
     const img = document.createElement('img');
     const assetKey = resolveAssetKey(word);
-    img.src = `${CONFIG.imageBaseUrl}${assetKey}${CONFIG.imageSuffix}`;
+    // Собираем URL: baseUrl + assetKey + суффикс
+    img.src = `${baseUrl}${assetKey}${CONFIG.imageSuffix}`;
     img.alt = word;
     img.loading = 'lazy';
     img.onerror = () => { img.src = SVG_FALLBACK; };
