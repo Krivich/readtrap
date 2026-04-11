@@ -202,6 +202,7 @@ main {
 .level-btn:active { transform: scale(0.97); }
 .level-easy:hover { border-color: #22c55e; }
 .level-normal:hover { border-color: #3b82f6; }
+.level-scientific:hover { border-color: #a855f7; }
 .level-emoji { font-size: 48px; line-height: 1; }
 .level-label { font-size: 22px; font-weight: 700; color: var(--text); }
 .level-desc { font-size: 14px; color: var(--text-light); }

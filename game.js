@@ -99,10 +99,170 @@ class CombinatorialProvider extends BaseProvider {
   }
 }
 
+/**
+ * 🔬 ScientificProvider — генерирует курс «с нуля» из манифеста open-word-images
+ * Загружает manifest.json, фильтрует слова по языку (en/ru),
+ * категоризирует по фонетической сложности, генерирует 40-50 уроков.
+ */
+class ScientificProvider extends BaseProvider {
+  constructor() {
+    super();
+    this.wordPool = null;
+    this.stageWords = { A1: [], A2: [], B1: [], B2: [] };
+    this.usage = new Map();
+    this.manifestUrl = 'https://krivich.github.io/open-word-images/manifest.json';
+    this.targetLang = 'en'; // 'en' = без кириллицы, 'ru' = с кириллицей
+  }
+
+  async loadManifest() {
+    if (this.wordPool) return this.wordPool;
+    try {
+      const res = await fetch(this.manifestUrl);
+      if (!res.ok) throw new Error(`Manifest ${res.status}`);
+      const data = await res.json();
+      // Группируем по слову (берём только latest-версию)
+      const latestMap = {};
+      for (const entry of data) {
+        if (entry.version === 'latest' || !latestMap[entry.word]) {
+          latestMap[entry.word] = entry.path;
+        }
+      }
+      this.wordPool = Object.entries(latestMap).map(([word, path]) => ({ word: word.toLowerCase(), path }));
+    } catch (e) {
+      console.error('❌ Manifest load failed:', e);
+      this.wordPool = [];
+    }
+    return this.wordPool;
+  }
+
+  filterByLang(words, lang) {
+    const hasCyrillic = w => /[а-яёА-ЯЁ]/.test(w);
+    if (lang === 'en') return words.filter(e => !hasCyrillic(e.word));
+    if (lang === 'ru') return words.filter(e => hasCyrillic(e.word));
+    return words;
+  }
+
+  /**
+   * Категоризация по фонетической сложности:
+   * A1: ≤3 буквы, 0 кластеров согласных (3+ подряд)
+   * A2: ≤5 букв, ≤1 кластер
+   * B1: ≤8 букв, ≤2 кластера
+   * B2: всё остальное
+   */
+  categorize(words) {
+    const stages = { A1: [], A2: [], B1: [], B2: [] };
+    for (const entry of words) {
+      const w = entry.word;
+      const len = w.length;
+      const consonants = w.replace(/[аеёиоуыэюяaeiouАЕЁИОУЫЭЮЯ]/g, '');
+      const clusters = (consonants.match(/.{3,}/g) || []).length;
+      if (len <= 3 && clusters === 0) stages.A1.push(entry);
+      else if (len <= 5 && clusters <= 1) stages.A2.push(entry);
+      else if (len <= 8 && clusters <= 2) stages.B1.push(entry);
+      else stages.B2.push(entry);
+    }
+    // Гарантируем минимум 5 слов в каждой стадии
+    const all = [...stages.A1, ...stages.A2, ...stages.B1, ...stages.B2];
+    for (const key of ['A1', 'A2', 'B1', 'B2']) {
+      while (stages[key].length < 5) {
+        const extra = all.find(w => !stages[key].includes(w));
+        if (extra) stages[key].push(extra); else break;
+      }
+    }
+    return stages;
+  }
+
+  async generateStages(lessonsPerStage = 10) {
+    await this.loadManifest();
+    const filtered = this.filterByLang(this.wordPool, this.targetLang);
+    this.stageWords = this.categorize(filtered);
+    const stages = [];
+
+    for (const [stageId, words] of Object.entries(this.stageWords)) {
+      const lessons = [];
+      for (let i = 0; i < lessonsPerStage; i++) {
+        let target = words[i % words.length];
+        let minUsage = Infinity;
+        for (const w of words) {
+          const u = this.usage.get(w.word) || 0;
+          if (u < minUsage) { minUsage = u; target = w; }
+        }
+        this.usage.set(target.word, minUsage + 1);
+
+        const distractors = this.selectDistractors(target, words, 3);
+
+        lessons.push({
+          id: `${stageId}-L${String(i + 1).padStart(2, '0')}`,
+          config: {
+            target_word: target.word.toUpperCase(),
+            distractor_pool: distractors.map(d => d.word),
+            distractor_count: 3
+          },
+          meta: {
+            pedagogical_goal: `Чтение "${target.word}" (${stageId})`,
+            difficulty: { A1: 1, A2: 3, B1: 5, B2: 7 }[stageId],
+            theme: 'Scientific',
+            trap_logic: `Замена: ${target.word[0]}→${distractors.map(d => d.word[0]).join(',')}`,
+            parent_note: `«${target.word} — это ${this.getHint(target.word)}, а ${distractors[0]?.word} — другое»`
+          }
+        });
+      }
+      stages.push({
+        id: stageId,
+        name: { A1: 'Первые звуки', A2: 'Простые слова', B1: 'Сложные слова', B2: 'Длинные слова' }[stageId],
+        description: { A1: 'Короткие слова', A2: 'Слова до 5 букв', B1: 'Слова 5-8 букв', B2: 'Длинные слова' }[stageId],
+        provider: 'scientific',
+        word_pool: words.map(w => w.word),
+        lessons
+      });
+    }
+    return stages;
+  }
+
+  selectDistractors(target, pool, count) {
+    const filtered = pool.filter(w => w.word !== target.word);
+    if (filtered.length <= count) return filtered;
+    const scored = filtered.map(w => {
+      const lenDiff = Math.abs(w.word.length - target.word.length);
+      const common = w.word.split('').filter(c => target.word.includes(c)).length;
+      const firstDiff = w.word[0] !== target.word[0] ? 1 : 0;
+      return { word: w, score: lenDiff * 2 - common - firstDiff + Math.random() * 0.5 };
+    });
+    scored.sort((a, b) => a.score - b.score);
+    return scored.slice(0, count).map(s => s.word);
+  }
+
+  generate(ctx) {
+    const c = ctx.config;
+    const target = c.target_word;
+    const pool = c.distractor_pool || [];
+    const count = c.distractor_count || 3;
+    if (!target) return { target_word: 'LOADING', image_words: [], correct_image_index: 0 };
+    const filtered = pool.filter(w => w.toLowerCase() !== target.toLowerCase());
+    const distractors = this._shuffle(filtered).slice(0, count);
+    return {
+      target_word: target.toUpperCase(),
+      image_words: [target.toLowerCase(), ...distractors],
+      correct_image_index: 0
+    };
+  }
+
+  getHint(word) {
+    const hints = {
+      cat: 'кот', dog: 'собака', house: 'дом', fish: 'рыба',
+      apple: 'яблоко', book: 'книга', tree: 'дерево', sun: 'солнце',
+      bird: 'птица', car: 'машина', cup: 'чашка', pen: 'ручка',
+      ball: 'мяч', hat: 'шляпа', bed: 'кровать', key: 'ключ'
+    };
+    return hints[word.toLowerCase()] || 'известное слово';
+  }
+}
+
 const PROVIDERS = {
   static: new StaticProvider(),
   pool: new PoolProvider(),
-  combinatorial: new CombinatorialProvider()
+  combinatorial: new CombinatorialProvider(),
+  scientific: new ScientificProvider()
 };
 
 const SVG_FALLBACK = 'data:image/svg+xml,' +
@@ -208,6 +368,7 @@ const startScreen = document.getElementById('start-screen');
 const gameContainer = document.getElementById('game-container');
 const btnEasy = document.getElementById('btn-easy');
 const btnNormal = document.getElementById('btn-normal');
+const btnScientific = document.getElementById('btn-scientific');
 
 async function init() {
   initSounds();
@@ -215,11 +376,42 @@ async function init() {
   // Обработчики кнопок выбора уровня
   btnEasy.addEventListener('click', () => startGame('curriculum-simple.json'));
   btnNormal.addEventListener('click', () => startGame('curriculum.json'));
+  btnScientific.addEventListener('click', () => startScientific());
 
   // Если конфиг указан в URL — сразу запускаем игру
   const params = new URLSearchParams(window.location.search);
   if (params.get('curriculum')) {
     startGame(params.get('curriculum'));
+  }
+}
+
+/**
+ * 🔬 Запуск научного провайдера: загружает манифест → генерирует курс → игра
+ */
+async function startScientific() {
+  startScreen.classList.add('hidden');
+  gameContainer.classList.remove('hidden');
+  document.getElementById('game-screen').classList.remove('hidden');
+
+  loadProgress();
+
+  try {
+    const provider = PROVIDERS.scientific;
+    const stages = await provider.generateStages(10);
+    state.curriculum = {
+      meta: { project: 'ninachit-scientific', version: '3.0.0' },
+      default_provider: 'scientific',
+      asset_map: {},
+      stages
+    };
+    if (!state.curriculum.stages.length) throw new Error('Нет стадий');
+    console.log(`🔬 Научный курс: ${stages.length} стадий, ${stages.reduce((s, st) => s + st.lessons.length, 0)} уроков`);
+    enterStage();
+    startLesson(false);
+  } catch (err) {
+    els.targetWord.textContent = '❌ Ошибка загрузки';
+    console.error('❌ Scientific init error:', err);
+    alert('Не удалось загрузить манифест open-word-images. Проверьте интернет.');
   }
 }
 

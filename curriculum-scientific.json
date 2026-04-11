@@ -1,0 +1,21 @@
+{
+  "meta": {
+    "project": "ninachit",
+    "version": "3.0.0",
+    "description": "Научный курс: генерируется автоматически из манифеста open-word-images",
+    "provider": "scientific",
+    "target_lang": "en",
+    "lessons_per_stage": 10
+  },
+  "default_provider": "scientific",
+  "asset_map": {},
+  "stages": [
+    {
+      "id": "A1",
+      "name": "Загрузка...",
+      "description": "Генерируется из манифеста",
+      "provider": "scientific",
+      "lessons": []
+    }
+  ]
+}
