@@ -298,6 +298,79 @@ const PROVIDERS = {
   scientific: new ScientificProvider()
 };
 
+/**
+ * 🔄 StageIterator — провайдер-итератор с внутренним логом.
+ * 
+ * При запросе урока N:
+ * 1. Если урок уже есть в this.log → отдаёт из кэша (детерминизм при Game Over).
+ * 2. Если урока нет → вызывает provider.generate(), сохраняет в лог, отдаёт.
+ * 
+ * Лог сохраняется в localStorage, чтобы при перезагрузке страницы
+ * игра продолжала использовать те же уроки.
+ */
+class StageIterator {
+  constructor(stageConfig) {
+    this.stageConfig = stageConfig;
+    this.log = [];
+    this.providerName = stageConfig.provider || 'static';
+    this.provider = PROVIDERS[this.providerName] || PROVIDERS.static;
+    this.metrics = {};
+  }
+
+  /**
+   * Получить урок по индексу.
+   * @param {number} index - Индекс урока
+   * @param {boolean} isRetry - Флаг повторного прохождения
+   * @returns {Object|null} Конфигурация урока или null
+   */
+  getLesson(index, isRetry = false) {
+    // 1. Если урок уже есть в логе → отдаём кэш (детерминизм!)
+    if (index < this.log.length) {
+      return this.log[index];
+    }
+
+    // 2. Если стадия содержит pre-generated уроки — берём оттуда
+    if (this.stageConfig.lessons && index < this.stageConfig.lessons.length) {
+      const lesson = this.stageConfig.lessons[index];
+      this.log.push(lesson);
+      return lesson;
+    }
+
+    // 3. Динамический провайдер: генерируем новый урок
+    if (this.provider && typeof this.provider.generate === 'function') {
+      const ctx = {
+        config: {
+          ...this.stageConfig,
+          history: this.log,
+          lessonIndex: index
+        },
+        metrics: this.metrics,
+        isRetry,
+        cachedRuntime: null
+      };
+
+      let lessonData = this.provider.generate(ctx);
+      if (!lessonData) return null;
+
+      // Нормализуем структуру
+      if (!lessonData.meta) lessonData.meta = { theme: this.stageConfig.name || 'Dynamic' };
+      if (!lessonData.id) lessonData.id = `${this.stageConfig.id}-L${String(index + 1).padStart(2, '0')}`;
+
+      this.log.push(lessonData);
+      return lessonData;
+    }
+
+    return null;
+  }
+
+  /**
+   * Сброс лога (при полном сбросе прогресса)
+   */
+  reset() {
+    this.log = [];
+  }
+}
+
 const SVG_FALLBACK = 'data:image/svg+xml,' +
   encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">' +
     '<rect width="100" height="100" fill="#eee"/>' +
@@ -339,7 +412,8 @@ const CONFIG = {
   curriculumPath: 'curriculum.json',
   imageBaseUrl: 'https://krivich.github.io/open-word-images/styles/new/',
   imageSuffix: '_latest_256.png',
-  storageKey: 'reading_game_progress_v2'
+  storageKey: 'reading_game_progress_v2',
+  scientificStorageKey: 'reading_game_scientific_curriculum_v1' // Ключ для сохранения научного курса
 };
 
 let state = {
@@ -351,6 +425,8 @@ let state = {
   currentRuntime: null,
   assetMap: {},
   providerInstance: null,
+  currentIterator: null,      // 🔄 Экземпляр StageIterator
+  pendingLessonsLog: null,    // 📦 Лог для восстановления итератора
   metrics: {
     streak: 0,
     errors: 0,
@@ -498,6 +574,18 @@ async function startGame(configPath) {
 }
 
 function enterStage() {
+  const stage = state.curriculum.stages[state.stageIdx];
+  if (!stage) { showEndScreen(true); return; }
+
+  // 🔄 Создаём новый итератор для стадии
+  state.currentIterator = new StageIterator(stage);
+
+  // 📦 Восстанавливаем лог из сохранения, если есть
+  if (state.pendingLessonsLog && state.pendingLessonsLog.length > 0) {
+    state.currentIterator.log = state.pendingLessonsLog;
+    state.pendingLessonsLog = null;
+  }
+
   state.assetMap = {
     ...(state.curriculum.asset_map || {}),
     ...(state.curriculum.stages[state.stageIdx]?.asset_map || {})
@@ -505,12 +593,6 @@ function enterStage() {
   if (state.lessonIdx === 0 || state.lessonIdx >= (state.curriculum.stages[state.stageIdx]?.lessons?.length || 0)) {
     state.lessonIdx = 0;
   }
-}
-
-function selectProvider(stage, lessonConfig) {
-  if (lessonConfig?.runtime?.image_words?.length) return PROVIDERS.static;
-  const name = lessonConfig?.provider || stage?.provider || 'static';
-  return PROVIDERS[name] || PROVIDERS.static;
 }
 
 function loadProgress() {
@@ -522,19 +604,31 @@ function loadProgress() {
       state.lessonIdx = p.lessonIdx ?? 0;
       state.lives = p.lives ?? 3;
       if (p.metrics) state.metrics = { ...state.metrics, ...p.metrics };
+
+      // 📥 Читаем сохранённый лог во временную переменную
+      if (p.lessonsLog && Array.isArray(p.lessonsLog)) {
+        state.pendingLessonsLog = p.lessonsLog;
+      }
     } catch (e) { console.warn('⚠️ Progress parse error:', e); }
   }
   updateUI();
 }
 
 function saveProgress() {
-  localStorage.setItem(CONFIG.storageKey, JSON.stringify({
+  const data = {
     stageIdx: state.stageIdx,
     lessonIdx: state.lessonIdx,
     lives: state.lives,
     metrics: { ...state.metrics, avgReaction: state.metrics.avgReaction },
     lastActive: new Date().toISOString()
-  }));
+  };
+
+  // 💾 Сохраняем лог уроков итератора
+  if (state.currentIterator) {
+    data.lessonsLog = state.currentIterator.log;
+  }
+
+  localStorage.setItem(CONFIG.storageKey, JSON.stringify(data));
 }
 
 function updateUI() {
@@ -549,26 +643,18 @@ function startLesson(isRetry = false) {
   els.nextBtn.style.display = 'none';
   els.grid.innerHTML = '';
 
+  // 🔄 Получаем урок через итератор (из лога или генерируем новый)
+  if (!state.currentIterator) { showEndScreen(true); return; }
+  
+  const lessonConfig = state.currentIterator.getLesson(state.lessonIdx, isRetry);
+  if (!lessonConfig) { showEndScreen(true); return; }
+
+  state.providerInstance = state.currentIterator.provider;
+
   const stage = state.curriculum.stages[state.stageIdx];
-  if (!stage) { showEndScreen(true); return; }
-
-  const lessons = stage.lessons || [];
-
-  let lessonConfig;
-  if (state.lessonIdx < lessons.length) {
-    lessonConfig = lessons[state.lessonIdx];
-  } else if (stage.provider && !lessons.length) {
-    lessonConfig = { provider: stage.provider, config: stage };
-  } else {
-    showEndScreen(true);
-    return;
-  }
-
-  state.providerInstance = selectProvider(stage, lessonConfig);
-
   const mergedConfig = {
     ...stage,
-    assetBaseUrl: lessonConfig.config?.assetBaseUrl || stage.assetBaseUrl,
+    assetBaseUrl: lessonConfig.config?.assetBaseUrl || stage?.assetBaseUrl,
     ...(lessonConfig.config || lessonConfig.runtime || {})
   };
 
@@ -583,7 +669,6 @@ function startLesson(isRetry = false) {
   if (!runtime) { showEndScreen(true); return; }
 
   runtime.assetBaseUrl = mergedConfig.assetBaseUrl;
-
   state.currentRuntime = runtime;
   state.metrics.startTime = Date.now();
 
@@ -686,46 +771,21 @@ function handleAnswer(selectedIdx, correctIndex, meta) {
  * чтобы при переходе они отображались мгновенно.
  */
 function prefetchNextLesson() {
-  try {
-    const stage = state.curriculum.stages[state.stageIdx];
-    if (!stage) return;
+  if (!state.currentIterator) return;
 
-    let nextStageIdx = state.stageIdx;
-    let nextLessonIdx = state.lessonIdx + 1;
-
-    // Если уроки в текущей стадии закончились
-    if (nextLessonIdx >= stage.lessons.length) {
-      nextLessonIdx = 0;
-      nextStageIdx++;
-    }
-
-    // Если стадий больше нет
-    if (nextStageIdx >= state.curriculum.stages.length) return;
-
-    const nextStage = state.curriculum.stages[nextStageIdx];
-    const nextLesson = nextStage.lessons?.[nextLessonIdx];
-
-    // Если следующего урока нет в списке (конец курса)
-    if (!nextLesson) return;
-
-    // Определяем слова для загрузки
-    let wordsToLoad = [];
-    
-    // Если это статический урок с runtime
-    if (nextLesson.runtime?.image_words) {
-      wordsToLoad = nextLesson.runtime.image_words;
-    } 
-    // Если это урок с config.distractor_pool
-    else if (nextLesson.config?.distractor_pool) {
-      const target = nextLesson.config.target_word;
-      wordsToLoad = [target, ...nextLesson.config.distractor_pool];
-    }
-
-    // Запускаем загрузку
-    if (wordsToLoad.length) {
-      // Определяем базовый URL (из конфига урока, стадии или глобальный)
-      const baseUrl = nextLesson.config?.assetBaseUrl || nextStage.assetBaseUrl || CONFIG.imageBaseUrl;
+  const nextIdx = state.lessonIdx + 1;
+  
+  // 🔄 Просим итератор "заглянуть" в следующий урок
+  // Если он уже есть в логе — отлично. Если нет — итератор его сгенерирует и положит в лог.
+  const nextLesson = state.currentIterator.getLesson(nextIdx);
+  
+  if (nextLesson) {
+    const wordsToLoad = nextLesson.config?.distractor_pool 
+      ? [nextLesson.config.target_word, ...nextLesson.config.distractor_pool]
+      : nextLesson.runtime?.image_words || [];
       
+    if (wordsToLoad.length) {
+      const baseUrl = nextLesson.config?.assetBaseUrl || CONFIG.imageBaseUrl;
       wordsToLoad.forEach(word => {
         if (word) {
           const img = new Image();
@@ -734,9 +794,6 @@ function prefetchNextLesson() {
         }
       });
     }
-  } catch (e) {
-    // Ошибки предзагрузки не должны ломать игру
-    console.warn('⚠️ Prefetch error:', e);
   }
 }
 
@@ -806,6 +863,10 @@ function resetProgress() {
     location.reload();
   }
 }
+
+// Экспорт для тестирования
+window.state = state;
+window.__getIteratorLogLength = () => state.currentIterator ? state.currentIterator.log.length : 0;
 
 // Старт
 init();
