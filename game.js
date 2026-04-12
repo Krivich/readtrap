@@ -427,6 +427,7 @@ let state = {
   providerInstance: null,
   currentIterator: null,      // 🔄 Экземпляр StageIterator
   pendingLessonsLog: null,    // 📦 Лог для восстановления итератора
+  showSyllables: false,       // 🔤 Фонетическое разбиение на слоги
   metrics: {
     streak: 0,
     errors: 0,
@@ -457,9 +458,117 @@ const els = {
 // ==========================================
 // 🛠️ UTILS
 // ==========================================
+
+const VOWELS = new Set('аеёиоуыэюяАЕЁИОУЫЭЮЯ');
+const SONORANTS = new Set('йлрмнЙЛРМН');
+const HARD_SIGNS = new Set('ъьЪЬ');
+
+/**
+ * Фонетическое деление на слоги (для обучения чтению).
+ * Принцип: открытые слоги, максимальное начало, й/ь/ъ → к предыдущему.
+ */
+function syllabify(word) {
+  if (!word || word.length < 2) return word;
+  
+  const chars = [...word];
+  const vowelIndices = [];
+  
+  for (let i = 0; i < chars.length; i++) {
+    if (VOWELS.has(chars[i])) vowelIndices.push(i);
+  }
+  
+  if (vowelIndices.length <= 1) return word;
+  
+  const breaks = [];
+  
+  for (let v = 0; v < vowelIndices.length - 1; v++) {
+    const currV = vowelIndices[v];
+    const nextV = vowelIndices[v + 1];
+    const between = chars.slice(currV + 1, nextV);
+    
+    if (between.length === 0) {
+      // Две гласные рядом → разрыв между ними
+      breaks.push(currV + 1);
+    } else if (between.length === 1) {
+      // Одна согласная → уходит к следующей гласной
+      breaks.push(currV + 1);
+    } else {
+      // Несколько согласных между гласными
+      let splitPos = currV + 1;
+      
+      // й, ь, ъ — модификаторы предыдущей согласной, не отрываются от неё
+      let lastSpecial = -1;
+      for (let i = 0; i < between.length; i++) {
+        if (HARD_SIGNS.has(between[i]) || between[i] === 'й' || between[i] === 'Й') {
+          lastSpecial = i;
+        }
+      }
+
+      if (lastSpecial >= 0) {
+        // Разрыв ПОСЛЕ специального символа (й/ь/ъ остаётся с предыдущей согласной)
+        splitPos = currV + 1 + lastSpecial + 1;
+      } else {
+        // Ищем границу звонкий/глухой
+        const voiced = new Set('бвгджз');
+        const voiceless = new Set('пфктшсчщхц');
+        
+        let foundVoicingBoundary = false;
+        for (let i = 0; i < between.length - 1; i++) {
+          const curr = between[i].toLowerCase();
+          const next = between[i + 1].toLowerCase();
+          
+          const isVoicedCurr = voiced.has(curr) || SONORANTS.has(between[i]);
+          const isVoicelessNext = voiceless.has(next);
+          const isVoicelessCurr = voiceless.has(curr);
+          const isVoicedNext = voiced.has(next) || SONORANTS.has(between[i + 1]);
+          
+          // Глухой → звонкий: разрыв между ними
+          if (isVoicelessCurr && isVoicedNext) {
+            splitPos = currV + 1 + i + 1;
+            foundVoicingBoundary = true;
+            break;
+          }
+          
+          // Звонкий (не сонорный) → глухой: разрыв между ними
+          if (isVoicedCurr && !SONORANTS.has(between[i]) && isVoicelessNext) {
+            splitPos = currV + 1 + i + 1;
+            foundVoicingBoundary = true;
+            break;
+          }
+        }
+        
+        // Если не нашли границу — делим пополам (максимальное начало)
+        if (!foundVoicingBoundary) {
+          const mid = Math.ceil(between.length / 2);
+          splitPos = currV + 1 + mid;
+        }
+      }
+      
+      breaks.push(splitPos);
+    }
+  }
+  
+  // Собираем слово с разделителями
+  let result = '';
+  let charIdx = 0;
+  let breakIdx = 0;
+  
+  for (let i = 0; i < chars.length; i++) {
+    result += chars[i];
+    if (breakIdx < breaks.length && i === breaks[breakIdx] - 1) {
+      result += '·';
+      breakIdx++;
+    }
+  }
+  
+  return result;
+}
+
 function resolveAssetKey(displayText) {
   if (!displayText) return '';
-  return state.assetMap[displayText] || displayText.toLowerCase();
+  // Убираем разделители слогов перед поиском в assetMap
+  const cleanText = displayText.replace(/[·]/g, '');
+  return state.assetMap[cleanText] || cleanText.toLowerCase();
 }
 
 function calculateAvgReaction(reactionTime) {
@@ -476,6 +585,7 @@ const startScreen = document.getElementById('start-screen');
 const gameContainer = document.getElementById('game-container');
 const btnEasy = document.getElementById('btn-easy');
 const btnNormal = document.getElementById('btn-normal');
+const btnSyllables = document.getElementById('btn-syllables');
 const btnScientific = document.getElementById('btn-scientific');
 
 async function init() {
@@ -499,9 +609,14 @@ async function init() {
 
   btnEasy.addEventListener('click', () => startGame('curriculum-simple.json'));
   btnNormal.addEventListener('click', () => startGame('curriculum.json'));
+  btnSyllables.addEventListener('click', () => {
+    state.showSyllables = true;
+    startGame('curriculum.json');
+  });
   btnScientific.addEventListener('click', () => startScientific());
 
   const params = new URLSearchParams(window.location.search);
+  if (params.get('syllables') === '1') state.showSyllables = true;
   if (params.get('level') === 'scientific') {
     startScientific();
   } else if (params.get('curriculum')) {
@@ -677,7 +792,12 @@ function startLesson(isRetry = false) {
 }
 
 function renderLesson(runtime, meta) {
-  els.targetWord.textContent = runtime.target_word;
+  // Если включен режим слогов — разбиваем слово на слоги
+  const displayWord = state.showSyllables 
+    ? syllabify(runtime.target_word) 
+    : runtime.target_word;
+  
+  els.targetWord.textContent = displayWord;
   updateUI();
 
   const baseUrl = runtime.assetBaseUrl || CONFIG.imageBaseUrl;
