@@ -399,6 +399,22 @@ const btnScientific = document.getElementById('btn-scientific');
 async function init() {
   initSounds();
 
+  // Глобальное делегирование кликов (работает для всех режимов)
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('#next-btn')) {
+      playSound('click');
+      nextLesson();
+    }
+    if (e.target.closest('#reset-btn')) {
+      playSound('click');
+      resetProgress();
+    }
+    if (e.target.closest('#restart-btn')) {
+      const btn = e.target.closest('#restart-btn');
+      if (btn.onclick) btn.onclick();
+    }
+  });
+
   btnEasy.addEventListener('click', () => startGame('curriculum-simple.json'));
   btnNormal.addEventListener('click', () => startGame('curriculum.json'));
   btnScientific.addEventListener('click', () => startScientific());
@@ -654,6 +670,68 @@ function handleAnswer(selectedIdx, correctIndex, meta) {
   }
 
   els.nextBtn.style.display = '';
+  
+  // Предзагрузка картинок следующего урока в фоне
+  prefetchNextLesson();
+}
+
+/**
+ * Загружает картинки следующего урока в кэш браузера,
+ * чтобы при переходе они отображались мгновенно.
+ */
+function prefetchNextLesson() {
+  try {
+    const stage = state.curriculum.stages[state.stageIdx];
+    if (!stage) return;
+
+    let nextStageIdx = state.stageIdx;
+    let nextLessonIdx = state.lessonIdx + 1;
+
+    // Если уроки в текущей стадии закончились
+    if (nextLessonIdx >= stage.lessons.length) {
+      nextLessonIdx = 0;
+      nextStageIdx++;
+    }
+
+    // Если стадий больше нет
+    if (nextStageIdx >= state.curriculum.stages.length) return;
+
+    const nextStage = state.curriculum.stages[nextStageIdx];
+    const nextLesson = nextStage.lessons?.[nextLessonIdx];
+
+    // Если следующего урока нет в списке (конец курса)
+    if (!nextLesson) return;
+
+    // Определяем слова для загрузки
+    let wordsToLoad = [];
+    
+    // Если это статический урок с runtime
+    if (nextLesson.runtime?.image_words) {
+      wordsToLoad = nextLesson.runtime.image_words;
+    } 
+    // Если это урок с config.distractor_pool
+    else if (nextLesson.config?.distractor_pool) {
+      const target = nextLesson.config.target_word;
+      wordsToLoad = [target, ...nextLesson.config.distractor_pool];
+    }
+
+    // Запускаем загрузку
+    if (wordsToLoad.length) {
+      // Определяем базовый URL (из конфига урока, стадии или глобальный)
+      const baseUrl = nextLesson.config?.assetBaseUrl || nextStage.assetBaseUrl || CONFIG.imageBaseUrl;
+      
+      wordsToLoad.forEach(word => {
+        if (word) {
+          const img = new Image();
+          const assetKey = resolveAssetKey(word);
+          img.src = `${baseUrl}${assetKey}${CONFIG.imageSuffix}`;
+        }
+      });
+    }
+  } catch (e) {
+    // Ошибки предзагрузки не должны ломать игру
+    console.warn('⚠️ Prefetch error:', e);
+  }
 }
 
 function nextLesson() {
