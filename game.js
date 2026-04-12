@@ -200,6 +200,12 @@ class ScientificProvider extends BaseProvider {
     if (!firstFolder) return [];
 
     this.stageWords = langGroups[firstFolder];
+
+    // 🎲 Перемешиваем слова в каждой стадии, чтобы игра не начиналась всегда с одного и того же слова
+    for (const stageKey of Object.keys(this.stageWords)) {
+      this.stageWords[stageKey] = this._shuffle(this.stageWords[stageKey]);
+    }
+
     const assetBaseUrl = `https://krivich.github.io/open-word-images/${firstFolder}/`;
     const stages = [];
 
