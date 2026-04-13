@@ -611,7 +611,7 @@ async function init() {
   btnNormal.addEventListener('click', () => startGame('curriculum.json'));
   btnSyllables.addEventListener('click', () => {
     state.showSyllables = true;
-    startGame('curriculum.json');
+    startScientific();
   });
   btnScientific.addEventListener('click', () => startScientific());
 
