@@ -427,7 +427,7 @@ let state = {
   providerInstance: null,
   currentIterator: null,      // 🔄 Экземпляр StageIterator
   pendingLessonsLog: null,    // 📦 Лог для восстановления итератора
-  showSyllables: false,       // 🔤 Фонетическое разбиение на слоги
+  showSyllables: true,          // 🔤 Слоги включены по умолчанию
   metrics: {
     streak: 0,
     errors: 0,
@@ -585,7 +585,6 @@ const startScreen = document.getElementById('start-screen');
 const gameContainer = document.getElementById('game-container');
 const btnEasy = document.getElementById('btn-easy');
 const btnNormal = document.getElementById('btn-normal');
-const btnSyllables = document.getElementById('btn-syllables');
 const btnScientific = document.getElementById('btn-scientific');
 
 async function init() {
@@ -609,14 +608,9 @@ async function init() {
 
   btnEasy.addEventListener('click', () => startGame('curriculum-simple.json'));
   btnNormal.addEventListener('click', () => startGame('curriculum.json'));
-  btnSyllables.addEventListener('click', () => {
-    state.showSyllables = true;
-    startScientific();
-  });
   btnScientific.addEventListener('click', () => startScientific());
 
   const params = new URLSearchParams(window.location.search);
-  if (params.get('syllables') === '1') state.showSyllables = true;
   if (params.get('level') === 'scientific') {
     startScientific();
   } else if (params.get('curriculum')) {
