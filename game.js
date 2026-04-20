@@ -35,10 +35,11 @@ async function loadGlobalManifest() {
 
             globalManifest = {
                 version: raw.version,
+                words: normalize(raw.words || {}),
                 concepts: normalize(raw.concepts || {})
             };
 
-            console.log(`📚 Manifest loaded: ${Object.keys(globalManifest.concepts).length} concepts`);
+            console.log(`📚 Manifest loaded: ${Object.keys(globalManifest.words).length} words, ${Object.keys(globalManifest.concepts).length} concepts`);
             return globalManifest;
         } catch (e) {
             console.error('❌ Manifest load failed:', e.message);
@@ -54,11 +55,35 @@ async function loadGlobalManifest() {
  * @returns {string|null} Путь вида "default/thumbs/256/бак_v1.png" или null
  */
 function resolveWordToManifestPath(word, targetLang = 'rus') {
-    if (!word || !globalManifest?.concepts) return null;
+    if (!word || !globalManifest?.words || !globalManifest?.concepts) return null;
 
     const cleanWord = word.replace(/[·]/g, '').trim();
-    const concept = globalManifest.concepts[cleanWord];
+    const wordEntry = globalManifest.words[cleanWord];
+    if (!wordEntry) return null;
+
+    const conceptKey = wordEntry.concept || cleanWord;
+    const concept = globalManifest.concepts[conceptKey];
     if (!concept) return null;
+
+    if (concept.concept) {
+        const linkedConcept = globalManifest.concepts[concept.concept];
+        if (!linkedConcept) return null;
+        return resolveConceptToPath(linkedConcept);
+    }
+
+    return resolveConceptToPath(concept);
+
+    function resolveConceptToPath(c) {
+        const styleName = (c.default_style || 'default').trim();
+        const style = c.styles?.[styleName];
+        if (!style) return null;
+
+        const versionIndex = style.best ?? style.latest;
+        if (versionIndex == null) return null;
+
+        const version = style.versions?.find(v => v.n === versionIndex);
+        return version?.previews?.['256']?.trim() || null;
+    }
 
     const styleName = (concept.default_style || 'default').trim();
     const style = concept.styles?.[styleName];
@@ -210,7 +235,29 @@ class ScientificProvider extends BaseProvider {
 
         const validWords = [];
 
-        for (const [word, concept] of Object.entries(globalManifest.concepts)) {
+        if (!globalManifest.words) {
+            this.wordPool = validWords;
+            return validWords;
+        }
+
+        const RUSSIAN_CHARS = /^[а-яёА-ЯЁ\-]+$/;
+
+        for (const [word, wordEntry] of Object.entries(globalManifest.words)) {
+            const lang = wordEntry?.language;
+            if (lang === 'rus') {
+                // ОК - явно русское
+            } else if (!lang || lang === '' || lang === 'default') {
+                // Нет language или default - проверяем буквы
+                if (!RUSSIAN_CHARS.test(word)) continue;
+            } else {
+                // eng или другой - пропускаем
+                continue;
+            }
+
+            const conceptKey = wordEntry.concept || word;
+            const concept = globalManifest.concepts[conceptKey];
+            if (!concept || concept.concept) continue;
+
             const styleName = (concept.default_style || 'default').trim();
             const style = concept.styles?.[styleName];
             if (!style) continue;
