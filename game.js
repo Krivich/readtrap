@@ -262,8 +262,8 @@ class ScientificProvider extends BaseProvider {
             const style = concept.styles?.[styleName];
             if (!style) continue;
 
-            const versionIndex = style.best ?? style.latest;
-            if (versionIndex == null) continue;
+            const versionIndex = style.best;
+            if (!versionIndex) continue;
 
             const version = style.versions?.find(v => v.n === versionIndex);
             const previewPath = version?.previews?.['256']?.trim();
